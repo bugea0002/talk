@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>단톡방 CTI 성향 분석 & 팩폭 리포트</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Canvas Confetti CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <!-- html2canvas CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            canvas: '#181817',        /* 깊고 따뜻한 딥 차콜 */
+            cardBg: '#222220',        /* 1단계 컨테이너 */
+            cardInner: '#2A2A28',     /* 중첩 서피스 */
+            cardHover: '#323230',
+            darkBorder: '#383835',    /* 은은한 웜 슬레이트 구분선 */
+            lightText: '#EDE8E3',     /* 부드러운 웜 크림 텍스트 */
+            mutedText: '#A29E99',     /* 저채도 보조 텍스트 */
+            terracotta: '#E0561B',    /* 메인 오렌지 포인트 */
+            amberGold: '#EAA43A',     /* 보조 앰버 포인트 */
+            interactiveBlue: '#5B8DF5',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/variable/pretendardvariable.css');
+    body { 
+      font-family: 'Pretendard Variable', 'Pretendard', sans-serif;
+      background-color: #181817;
+      color: #EDE8E3;
+    }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #383835; border-radius: 4px; }
+  </style>
+</head>
+<body class="bg-[#181817] text-[#EDE8E3] min-h-screen custom-scrollbar flex flex-col" style="padding-top: 100px;">
+
+  <!-- 플로팅 네비게이션 -->
+  <header class="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-5xl">
+    <div class="backdrop-blur-md bg-[#222220]/90 rounded-full border border-[#383835] shadow-[0_4px_24px_rgba(0,0,0,0.3)] px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-2 cursor-pointer" onclick="showLandingView()">
+        <span class="text-2xl">💬</span>
+        <div>
+          <h1 class="text-base font-black tracking-tight text-[#EDE8E3] flex items-center gap-2">
+            단톡방 <span class="text-[#E0561B]">CTI</span> 팩폭 리포트
+            <span class="text-xs font-semibold px-2.5 py-0.5 bg-[#2A2A28] text-[#EDE8E3] border border-[#383835] rounded-full">채팅 MBTI</span>
+          </h1>
+        </div>
+      </div>
+
+      <!-- 프라이버시 안심 배너 -->
+      <div class="hidden sm:flex items-center gap-2 text-xs text-emerald-300 bg-emerald-950/50 border border-emerald-800/60 px-3 py-1.5 rounded-full">
+        <i class="fa-solid fa-shield-halved"></i>
+        <span class="font-medium">100% 브라우저 로컬 분석 • 서버 전송 0건</span>
+      </div>
+
+      <!-- 우측 액션 버튼 -->
+      <div class="flex items-center gap-2">
+        <button id="navUploadBtn" onclick="triggerFileInput()" class="px-4 py-2 bg-[#E0561B] hover:opacity-90 text-white text-xs font-bold rounded-[20px] transition flex items-center gap-1.5 shadow-sm">
+          <i class="fa-solid fa-file-arrow-up"></i> 카톡 분석하기
+        </button>
+        <button id="navBackBtn" onclick="showLandingView()" class="px-4 py-2 bg-[#2A2A28] hover:bg-[#323230] text-[#EDE8E3] text-xs font-semibold rounded-[20px] transition hidden flex items-center gap-1.5 border border-[#383835]">
+          <i class="fa-solid fa-arrow-left"></i> 처음으로
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==================== 1. 랜딩 & 업로드 뷰 ==================== -->
+  <main id="landingView" class="max-w-6xl mx-auto px-4 py-8 space-y-24 w-full flex-grow">
+
+    <!-- 메인 히어로 섹션 -->
+    <section class="text-center space-y-5 max-w-3xl mx-auto pt-4">
+      <div class="inline-flex items-center gap-2 px-4 py-1.5 bg-[#222220] border border-[#383835] rounded-full text-xs font-semibold text-[#EDE8E3] tracking-wider uppercase">
+        <span class="text-[#E0561B]">●</span> 친구들과 함께 보는 단톡방 채팅 성향 지표
+      </div>
+      <h2 class="text-3xl md:text-5xl font-black text-[#EDE8E3] leading-tight tracking-tight">
+        우리 단톡방에서 <span class="text-[#E0561B]">누가 누구랑 가장 잘 통할까?</span><br>
+        1초 만에 확인하는 CTI 팩폭 성적표
+      </h2>
+      <p class="text-sm md:text-base text-[#A29E99] leading-relaxed max-w-2xl mx-auto">
+        카카오톡 대화 텍스트(<code class="text-[#E0561B] bg-[#2A2A28] px-1.5 py-0.5 rounded text-xs font-mono">.txt</code>)를 올리면, 대화량·어휘·질문율·1:1 티키타카를 분석해<br class="hidden sm:inline">
+        <strong>16가지 CTI 성향 카드</strong>와 <strong>1:1 케미 랭킹</strong>, <strong>뼈 때리는 팩폭</strong>을 도출합니다.
+      </p>
+    </section>
+
+    <!-- 대형 파일 업로드 존 -->
+    <section class="max-w-2xl mx-auto -mt-8">
+      <input type="file" id="mainFileInput" accept=".txt" class="hidden" onchange="handleFileSelect(event)">
+      <div id="mainDropZone" class="bg-[#222220] border-2 border-dashed border-[#383835] hover:border-[#E0561B] rounded-[40px] p-8 md:p-10 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 group shadow-[0_8px_30px_rgba(0,0,0,0.3)] space-y-4">
+        <div class="w-16 h-16 rounded-2xl bg-[#2A2A28] group-hover:bg-[rgba(224,86,27,0.15)] flex items-center justify-center text-[#E0561B] text-3xl transition">
+          <i class="fa-solid fa-cloud-arrow-up"></i>
+        </div>
+        <div class="space-y-1">
+          <p class="text-base font-bold text-[#EDE8E3] group-hover:text-[#E0561B]">
+            카카오톡 대화 내보내기 파일(.txt)을 이곳에 끌어다 놓으세요
+          </p>
+          <p class="text-xs text-[#A29E99]">
+            또는 클릭하여 내 컴퓨터에서 파일 선택
+          </p>
+        </div>
+        <div class="pt-2 flex flex-wrap justify-center items-center gap-3">
+          <button type="button" onclick="document.getElementById('mainFileInput').click()" class="px-5 py-2.5 bg-[#E0561B] hover:opacity-90 text-white font-bold text-xs rounded-[20px] transition shadow-sm">
+            <i class="fa-solid fa-folder-open"></i> 내 카톡 파일 열기
+          </button>
+          <button type="button" onclick="loadSampleDemo(event)" class="px-5 py-2.5 bg-[#2A2A28] hover:bg-[#323230] text-[#EDE8E3] font-bold text-xs rounded-[20px] transition border border-[#383835] flex items-center gap-1.5">
+            <i class="fa-solid fa-sparkles text-[#E0561B]"></i> [체험용 샘플 리포트] 둘러보기
+          </button>
+        </div>
+      </div>
+
+      <div class="mt-4 flex flex-wrap items-center justify-center gap-6 text-xs text-[#A29E99]">
+        <span class="flex items-center gap-1.5"><i class="fa-brands fa-windows text-[#E0561B]"></i> PC 카톡: 메뉴(≡) ➔ 대화 내용 ➔ 대화 내보내기</span>
+        <span class="flex items-center gap-1.5"><i class="fa-solid fa-mobile-screen text-[#E0561B]"></i> 모바일: 메뉴(≡) ➔ 설정(⚙️) ➔ 대화 내용 내보내기</span>
+      </div>
+    </section>
+
+    <!-- 4대 축 소개 -->
+    <section class="space-y-5 max-w-3xl mx-auto">
+      <div class="text-center space-y-1">
+        <div class="flex items-center justify-center gap-2 mb-2">
+          <span class="text-[#E0561B]">●</span>
+          <span class="text-xs font-bold text-[#A29E99] uppercase tracking-widest">CTI 지표</span>
+        </div>
+        <h3 class="text-xl md:text-2xl font-black text-[#EDE8E3]">채팅 스타일을 결정짓는 CTI 4대 지표</h3>
+        <p class="text-xs text-[#A29E99]">MBTI처럼 4가지 상반된 대화 성향의 조합으로 성격을 분석합니다</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- 지표 1 -->
+        <div class="bg-[#222220] border border-[#383835] hover:border-[#E0561B] rounded-[32px] p-5 space-y-3 shadow-[0_4px_20px_rgba(0,0,0,0.2)] transition">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-[#E0561B] px-2.5 py-1 bg-[rgba(224,86,27,0.12)] rounded-full border border-[rgba(224,86,27,0.3)]">지표 1</span>
+            <span class="text-xs text-[#A29E99] font-mono font-semibold">Initiative</span>
+          </div>
+          <h4 class="font-bold text-base text-[#EDE8E3] flex items-center gap-2">
+            <span>화제 점화력</span>
+            <span class="text-xs text-[#E0561B] font-mono font-extrabold">(E vs I)</span>
+          </h4>
+          <div class="space-y-2 text-xs leading-relaxed text-[#A29E99] pt-1 border-t border-[#383835]">
+            <div class="flex items-start gap-2">
+              <span class="px-1.5 py-0.5 rounded bg-[rgba(224,86,27,0.2)] text-[#E0561B] font-mono font-bold text-[11px]">E</span>
+              <div><strong class="text-[#EDE8E3]">Engine (점화형)</strong>: 정적을 깨고 먼저 화제를 던지며 질문을 쏟아내는 톡방의 엔진</div>
+            </div>
+            <div class="flex items-start gap-2">
+              <span class="px-1.5 py-0.5 rounded bg-[#2A2A28] text-[#EDE8E3] font-mono font-bold text-[11px]">I</span>
+              <div><strong class="text-[#EDE8E3]">Insight (관조형)</strong>: 흐름을 조용히 관망하다가 필요한 순간에만 툭 등장하는 관찰자</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 지표 2 -->
+        <div class="bg-[#222220] border border-[#383835] hover:border-[#5B8DF5] rounded-[32px] p-5 space-y-3 shadow-[0_4px_20px_rgba(0,0,0,0.2)] transition">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-[#5B8DF5] px-2.5 py-1 bg-[rgba(91,141,245,0.12)] rounded-full border border-[rgba(91,141,245,0.3)]">지표 2</span>
+            <span class="text-xs text-[#A29E99] font-mono font-semibold">Length</span>
+          </div>
+          <h4 class="font-bold text-base text-[#EDE8E3] flex items-center gap-2">
+            <span>텍스트 호흡</span>
+            <span class="text-xs text-[#5B8DF5] font-mono font-extrabold">(L vs S)</span>
+          </h4>
+          <div class="space-y-2 text-xs leading-relaxed text-[#A29E99] pt-1 border-t border-[#383835]">
+            <div class="flex items-start gap-2">
+              <span class="px-1.5 py-0.5 rounded bg-[rgba(91,141,245,0.2)] text-[#5B8DF5] font-mono font-bold text-[11px]">L</span>
+              <div><strong class="text-[#EDE8E3]">Long (서사형)</strong>: 상세한 묘사, 장문, 사진, 링크를 곁들여 썰을 풍성하게 푸는 이야기꾼</div>
+            </div>
+            <div class="flex items-start gap-2">
+              <span class="px-1.5 py-0.5 rounded bg-[#2A2A28] text-[#EDE8E3] font-mono font-bold text-[11px]">S</span>
+              <div><strong class="text-[#EDE8E3]">Short (단답형)</strong>: 불필요한 수식어 없이 'ㅇㅇ', 'ㅇㅋ', 단어 위주로 핵심만 던지는 압축파</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 지표 3 -->
+        <div class="bg-[#222220] border border-[#383835] hover:border-emerald-500 rounded-[32px] p-5 space-y-3 shadow-[0_4px_20px_rgba(0,0,0,0.2)] transition">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-emerald-400 px-2.5 py-1 bg-emerald-950/60 rounded-full border border-emerald-800/60">지표 3</span>
+            <span class="text-xs text-[#A29E99] font-mono font-semibold">Focus</span>
+          </div>
+          <h4 class="font-bold text-base text-[#EDE8E3] flex items-center gap-2">
+            <span>대화 목적</span>
+            <span class="text-xs text-emerald-400 font-mono font-extrabold">(F vs T)</span>
+          </h4>
+          <div class="space-y-2 text-xs leading-relaxed text-[#A29E99] pt-1 border-t border-[#383835]">
+            <div class="flex items-start gap-2">
+              <span class="px-1.5 py-0.5 rounded bg-emerald-950/80 text-emerald-300 font-mono font-bold text-[11px]">F</span>
+              <div><strong class="text-[#EDE8E3]">Feeling (감정·드립형)</strong>: 일상의 희로애락, 피로감, 자조와 억지 유머를 나누며 감정 교류</div>
+            </div>
+            <div class="flex items-start gap-2">
+              <span class="px-1.5 py-0.5 rounded bg-[#2A2A28] text-[#EDE8E3] font-mono font-bold text-[11px]">T</span>
+              <div><strong class="text-[#EDE8E3]">Task (행동·팩트형)</strong>: 약속 시간, 장소, 운동, 정산, 현실적 팩트 체크와 실행 최우선</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 지표 4 -->
+        <div class="bg-[#222220] border border-[#383835] hover:border-purple-400 rounded-[32px] p-5 space-y-3 shadow-[0_4px_20px_rgba(0,0,0,0.2)] transition">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-purple-300 px-2.5 py-1 bg-purple-950/60 rounded-full border border-purple-800/60">지표 4</span>
+            <span class="text-xs text-[#A29E99] font-mono font-semibold">Reaction</span>
+          </div>
+          <h4 class="font-bold text-base text-[#EDE8E3] flex items-center gap-2">
+            <span>반응 태도</span>
+            <span class="text-xs text-purple-300 font-mono font-extrabold">(R vs A)</span>
+          </h4>
+          <div class="space-y-2 text-xs leading-relaxed text-[#A29E99] pt-1 border-t border-[#383835]">
+            <div class="flex items-start gap-2">
+              <span class="px-1.5 py-0.5 rounded bg-purple-950/80 text-purple-300 font-mono font-bold text-[11px]">R</span>
+              <div><strong class="text-[#EDE8E3]">Receptive (수용·완충형)</strong>: '아하', '맞지' 등 상대의 말을 유연하게 받아주고 중화시키는 쿠션</div>
+            </div>
+            <div class="flex items-start gap-2">
+              <span class="px-1.5 py-0.5 rounded bg-[#2A2A28] text-[#EDE8E3] font-mono font-bold text-[11px]">A</span>
+              <div><strong class="text-[#EDE8E3]">Assertive (직진·도발형)</strong>: 거침없는 돌직구, 파괴적 과장과 으름장으로 텐션을 쥐고 흔듦</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 16가지 성향 도감 미리보기 -->
+    <section class="space-y-4 max-w-5xl mx-auto">
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="flex items-center gap-2 mb-1">
+            <span class="text-[#E0561B]">●</span>
+            <span class="text-xs font-bold text-[#A29E99] uppercase tracking-widest">CTI 도감</span>
+          </div>
+          <h3 class="text-xl font-bold text-[#EDE8E3]">16가지 CTI 성향 도감 둘러보기</h3>
+          <p class="text-xs text-[#A29E99]">카드를 클릭하면 세부 팩폭과 궁합을 확인할 수 있습니다</p>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3.5" id="landingEncyclopediaGrid"></div>
+    </section>
+
+  </main>
+
+  <!-- ==================== 2. 분석 결과 리포트 뷰 ==================== -->
+  <main id="reportView" class="max-w-6xl mx-auto px-4 py-6 space-y-6 w-full flex-grow hidden">
+
+    <!-- 단톡방 정보 헤더 바 -->
+    <div class="flex flex-wrap items-center justify-between gap-4 bg-[#222220] border border-[#383835] rounded-[32px] p-5 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
+      <div class="flex items-center gap-3">
+        <span class="text-3xl" id="roomIcon">🏆</span>
+        <div>
+          <h3 class="text-lg font-black text-[#EDE8E3] flex items-center gap-2">
+            <span id="roomTitle">단톡방 분석 리포트</span>
+            <span id="roomGradeBadge" class="text-xs px-2.5 py-0.5 rounded-full bg-[#2A2A28] text-[#EDE8E3] font-bold border border-[#383835]">우정 S+</span>
+          </h3>
+          <p class="text-xs text-[#A29E99] mt-0.5" id="roomSubText">분석 완료</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="toggleAnonymize()" id="btnAnonymize" class="px-3 py-1.5 bg-[#2A2A28] hover:bg-[#323230] text-[#EDE8E3] text-xs font-semibold rounded-[20px] border border-[#383835] transition flex items-center gap-1.5">
+          <i class="fa-solid fa-user-secret"></i> <span id="anonymizeText">가명 모드</span>
+        </button>
+        <button onclick="openShareModal()" class="px-3.5 py-1.5 bg-[#EAA43A] hover:opacity-90 text-[#181817] text-xs font-black rounded-[20px] transition flex items-center gap-1.5 shadow-sm">
+          <i class="fa-solid fa-sparkles"></i> <span>포토카드 공유</span>
+        </button>
+        <button onclick="captureCurrentTab()" class="px-3 py-1.5 bg-[#2A2A28] hover:bg-[#323230] text-[#EDE8E3] text-xs font-semibold rounded-[20px] border border-[#383835] transition flex items-center gap-1.5">
+          <i class="fa-solid fa-camera"></i> 화면 캡처
+        </button>
+        <button onclick="showLandingView()" class="px-3 py-1.5 bg-[#2A2A28] hover:bg-[#323230] text-[#EDE8E3] text-xs font-semibold rounded-[20px] border border-[#383835] transition flex items-center gap-1.5">
+          <i class="fa-solid fa-arrow-rotate-left"></i> 새 파일
+        </button>
+      </div>
+    </div>
+
+    <!-- '내 중심' 관계도 필터 바 -->
+    <div class="bg-[#222220] border border-[#383835] rounded-[24px] p-4 flex flex-wrap items-center justify-between gap-3 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
+      <div class="flex items-center gap-2.5">
+        <span class="text-xs font-bold text-[#E0561B] px-2.5 py-1 bg-[rgba(224,86,27,0.12)] rounded-full border border-[rgba(224,86,27,0.3)] flex items-center gap-1.5">
+          <i class="fa-solid fa-crosshairs"></i> 내 시점 맞춤 보기
+        </span>
+        <span class="text-xs text-[#A29E99] hidden sm:inline">본인 이름을 클릭하면 나 중심의 케미 순위와 분석으로 맞춤 전환됩니다</span>
+      </div>
+      <div class="flex items-center gap-1.5 flex-wrap" id="focusMemberFilterContainer">
+        <!-- 동적 렌더링 -->
+      </div>
+    </div>
+
+    <!-- 내 중심 포커스 요약 배너 -->
+    <div id="focusBanner" class="hidden bg-[#222220] border border-[rgba(224,86,27,0.35)] rounded-[24px] p-5 space-y-3 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <span class="text-3xl" id="focusAvatar">🔥</span>
+          <div>
+            <h4 class="text-base font-black text-[#EDE8E3] flex items-center gap-2">
+              <span id="focusName">박상원</span> 중심 우정 & 관계도 리포트
+              <span id="focusCtiBadge" class="text-xs px-2.5 py-0.5 rounded-full bg-[#E0561B] text-white font-bold">ESFR</span>
+            </h4>
+            <p class="text-xs text-[#A29E99] mt-0.5" id="focusPersonaText">새벽의 망령 👻</p>
+          </div>
+        </div>
+        <button onclick="clearFocusMember()" class="text-xs px-3 py-1.5 bg-[#2A2A28] hover:bg-[#323230] text-[#EDE8E3] rounded-[20px] transition border border-[#383835] flex items-center gap-1.5">
+          <i class="fa-solid fa-xmark"></i> 전체 시점으로 복귀
+        </button>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+        <div class="bg-[#181817] border border-[#383835] rounded-xl p-3">
+          <p class="text-[11px] text-[#A29E99] font-medium">나와 최고 영혼의 단짝</p>
+          <p class="text-sm font-bold text-[#E0561B] mt-1" id="focusTopSoulmate">-</p>
+        </div>
+        <div class="bg-[#181817] border border-[#383835] rounded-xl p-3">
+          <p class="text-[11px] text-[#A29E99] font-medium">나의 대표 시그니처 말버릇</p>
+          <p class="text-sm font-bold text-[#EDE8E3] mt-1" id="focusTopWords">-</p>
+        </div>
+        <div class="bg-[#181817] border border-[#383835] rounded-xl p-3">
+          <p class="text-[11px] text-[#A29E99] font-medium">나의 주 활동 피크 타임</p>
+          <p class="text-sm font-bold text-[#EAA43A] mt-1" id="focusActiveHours">-</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 네비게이션 탭 -->
+    <nav class="flex bg-[#222220] border border-[#383835] rounded-full p-1.5 gap-1 overflow-x-auto custom-scrollbar">
+      <button onclick="switchTab('tabOverview')" class="tab-btn px-4 py-2 text-sm font-medium bg-[#E0561B] text-white rounded-full flex items-center gap-2 shrink-0 transition" data-target="tabOverview">
+        <i class="fa-solid fa-award"></i> 종합 우정 성적표
+      </button>
+      <button onclick="switchTab('tabCharacters')" class="tab-btn px-4 py-2 text-sm font-medium text-[#A29E99] hover:text-[#EDE8E3] flex items-center gap-2 shrink-0 transition" data-target="tabCharacters">
+        <i class="fa-solid fa-address-card"></i> 인물별 CTI 팩폭 카드
+      </button>
+      <button onclick="switchTab('tabChemistry')" class="tab-btn px-4 py-2 text-sm font-medium text-[#A29E99] hover:text-[#EDE8E3] flex items-center gap-2 shrink-0 transition" data-target="tabChemistry">
+        <i class="fa-solid fa-heart-circle-bolt"></i> 1:1 케미 &amp; 궁합 랭킹
+      </button>
+      <button onclick="switchTab('tabActivity')" class="tab-btn px-4 py-2 text-sm font-medium text-[#A29E99] hover:text-[#EDE8E3] flex items-center gap-2 shrink-0 transition" data-target="tabActivity">
+        <i class="fa-solid fa-chart-line"></i> 활동 패턴 &amp; 시그니처 키워드
+      </button>
+      <button onclick="switchTab('tabEncyclopedia')" class="tab-btn px-4 py-2 text-sm font-medium text-[#A29E99] hover:text-[#EDE8E3] flex items-center gap-2 shrink-0 transition" data-target="tabEncyclopedia">
+        <i class="fa-solid fa-book-bookmark"></i> CTI 16가지 성향 도감
+      </button>
+    </nav>
+
+    <!-- 탭 1: 종합 우정 성적표 -->
+    <section id="tabOverview" class="tab-content space-y-6">
+
+      <!-- 톡방 총평 배너 -->
+      <div class="bg-[#222220] border border-[#383835] rounded-[32px] p-5 md:p-6 space-y-2.5 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
+        <div class="flex items-center justify-between">
+          <h4 class="text-sm font-bold text-[#EDE8E3] flex items-center gap-2">
+            <i class="fa-solid fa-magnifying-glass-chart text-[#E0561B]"></i> 알고리즘이 분석한 톡방 총평
+          </h4>
+          <span class="text-[11px] px-2.5 py-0.5 rounded-full bg-[#2A2A28] text-[#A29E99] border border-[#383835] font-semibold">AI 진단 요약</span>
+        </div>
+        <p class="text-sm md:text-base text-[#EDE8E3] leading-relaxed font-medium" id="groupVibeText">
+          분석 중입니다.
+        </p>
+      </div>
+
+      <!-- 4개 핵심 통계 지표 -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="bg-[#222220] border border-[#383835] rounded-[32px] p-4 space-y-1 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
+          <p class="text-xs text-[#A29E99] font-medium">기싸움 지수</p>
+          <div class="flex items-baseline gap-2">
+            <span class="text-3xl font-black text-[#E0561B]" id="statTension">0%</span>
+            <span class="text-xs text-emerald-300 bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-800/60">평화 100%</span>
+          </div>
+          <p class="text-[11px] text-[#A29E99]">악의적 비난·냉전 없는 청정 구역</p>
+        </div>
+
+        <div class="bg-[#222220] border border-[#383835] rounded-[32px] p-4 space-y-1 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
+          <p class="text-xs text-[#A29E99] font-medium">총 분석 발화량</p>
+          <div class="flex items-baseline gap-2">
+            <span class="text-3xl font-black text-[#EAA43A]" id="statTotalMsgs">0</span>
+            <span class="text-xs text-[#A29E99]">건</span>
+          </div>
+          <p class="text-[11px] text-[#A29E99]" id="statAvgMsgs">참여자 평균 집계</p>
+        </div>
+
+        <div class="bg-[#222220] border border-[#383835] rounded-[32px] p-4 space-y-1 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
+          <p class="text-xs text-[#A29E99] font-medium">최다 발화 수다쟁이</p>
+          <div class="flex items-baseline gap-2">
+            <span class="text-2xl font-black text-[#EDE8E3]" id="statTopTalker">-</span>
+            <span class="text-xs text-[#E0561B] font-bold" id="statTopRatio">0%</span>
+          </div>
+          <p class="text-[11px] text-[#A29E99]">단톡방의 대화 점화 엔진</p>
+        </div>
+
+        <div class="bg-[#222220] border border-[#383835] rounded-[32px] p-4 space-y-1 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
+          <p class="text-xs text-[#A29E99] font-medium">1:1 최강 영혼의 단짝</p>
+          <div class="flex items-baseline gap-2">
+            <span class="text-xl font-black text-[#5B8DF5]" id="statTopPair">-</span>
+            <span class="text-xs text-[#5B8DF5] font-bold" id="statTopPairCount">-</span>
+          </div>
+          <p class="text-[11px] text-[#A29E99]">최다 티키타카 상호작용</p>
+        </div>
+      </div>
+
+      <!-- 참여자 CTI 미니 요약 그리드 -->
+      <div class="space-y-3">
+        <h4 class="text-sm font-bold text-[#EDE8E3] flex items-center gap-2">
+          <i class="fa-solid fa-users text-[#E0561B]"></i> 단톡방 CTI 구성원 라인업
+        </h4>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" id="overviewMemberGrid"></div>
+      </div>
+    </section>
+
+    <!-- 탭 2: 인물별 CTI 팩폭 카드 -->
+    <section id="tabCharacters" class="tab-content hidden space-y-6">
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-lg font-bold text-[#EDE8E3]">참여자별 CTI 캐릭터 카드 &amp; 팩폭 신상명세서</h3>
+          <p class="text-xs text-[#A29E99]">발화 습관, 전투력 스탯, 시그니처 대사, 뼈 때리는 성찰 피드백</p>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6" id="characterCardsContainer"></div>
+    </section>
+
+    <!-- 탭 3: 1:1 케미 & 궁합 랭킹 -->
+    <section id="tabChemistry" class="tab-content hidden space-y-6">
+      <div class="space-y-1">
+        <h3 class="text-lg font-bold text-[#EDE8E3] flex items-center gap-2">
+          <i class="fa-solid fa-heart-pulse text-[#E0561B]"></i> 단톡방 1:1 케미스트리 &amp; 상성 랭킹
+        </h3>
+        <p class="text-xs text-[#A29E99]">누가 누구와 가장 가깝고, 어떤 티키타카를 주고받을까?</p>
+      </div>
+      <div class="space-y-4" id="pairRankingsContainer"></div>
+
+      <!-- 자유 조합 궁합 계산기 -->
+      <div class="bg-[#222220] border border-[#383835] rounded-[32px] p-6 space-y-4 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
+        <h4 class="text-sm font-bold text-[#E0561B] flex items-center gap-2">
+          <i class="fa-solid fa-wand-magic-sparkles"></i> 1:1 자유 조합 궁합 시뮬레이터
+        </h4>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="text-xs text-[#A29E99] block mb-1">인물 A 선택</label>
+            <select id="simSelectA" class="w-full bg-[#181817] border border-[#383835] rounded-xl px-3 py-2 text-sm text-[#EDE8E3]" onchange="runChemistrySimulation()"></select>
+          </div>
+          <div>
+            <label class="text-xs text-[#A29E99] block mb-1">인물 B 선택</label>
+            <select id="simSelectB" class="w-full bg-[#181817] border border-[#383835] rounded-xl px-3 py-2 text-sm text-[#EDE8E3]" onchange="runChemistrySimulation()"></select>
+          </div>
+        </div>
+        <div id="simResultBox" class="mt-4 p-4 rounded-xl bg-[#181817] border border-[#383835] space-y-2"></div>
+      </div>
+    </section>
+
+    <!-- 탭 4: 활동 패턴 & 시그니처 키워드 -->
+    <section id="tabActivity" class="tab-content hidden space-y-6">
+
+      <!-- 상단 4개 하이라이트 지표 카드 -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="bg-[#222220] border border-[#383835] rounded-[32px] p-4 space-y-1 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
+          <p class="text-xs text-[#A29E99] font-medium">톡방 골든 아워 (피크 타임)</p>
+          <div class="flex items-baseline gap-2">
+            <span class="text-2xl md:text-3xl font-black text-[#EAA43A]" id="activityPeakHour">-</span>
+          </div>
+          <p class="text-[11px] text-[#A29E99]">대화가 가장 폭주하는 시간</p>
+        </div>
+
+        <div class="bg-[#222220] border border-[#383835] rounded-[32px] p-4 space-y-1 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
+          <p class="text-xs text-[#A29E99] font-medium">주간 최다 폭주 요일</p>
+          <div class="flex items-baseline gap-2">
+            <span class="text-2xl md:text-3xl font-black text-[#5B8DF5]" id="activityPeakWeekday">-</span>
+          </div>
+          <p class="text-[11px] text-[#A29E99]">일주일 중 대화 지분 1위</p>
+        </div>
+
+        <div class="bg-[#222220] border border-[#383835] rounded-[32px] p-4 space-y-1 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
+          <p class="text-xs text-[#A29E99] font-medium">새벽의 망령 (01~06시)</p>
+          <div class="flex items-baseline gap-2">
+            <span class="text-xl md:text-2xl font-black text-[#EDE8E3]" id="activityTopOwl">-</span>
+          </div>
+          <p class="text-[11px] text-[#A29E99]" id="activityTopOwlSub">새벽 발화 비중 1위</p>
+        </div>
+
+        <div class="bg-[#222220] border border-[#383835] rounded-[32px] p-4 space-y-1 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
+          <p class="text-xs text-[#A29E99] font-medium">아침 기상 선발대 (06~10시)</p>
+          <div class="flex items-baseline gap-2">
+            <span class="text-xl md:text-2xl font-black text-emerald-400" id="activityTopEarly">-</span>
+          </div>
+          <p class="text-[11px] text-[#A29E99]" id="activityTopEarlySub">아침 기동력 1위</p>
+        </div>
+      </div>
+
+      <!-- 차트 2분할 그리드 -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- 24시간 활동량 -->
+        <div class="bg-[#222220] border border-[#383835] rounded-[32px] p-5 md:p-6 space-y-3 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
+          <div class="flex items-center justify-between">
+            <h4 class="text-sm font-bold text-[#EDE8E3] flex items-center gap-2">
+              <i class="fa-solid fa-clock text-[#EAA43A]"></i> 24시간 대화 활동 타임라인
+            </h4>
+            <span class="text-[11px] px-2.5 py-0.5 rounded-full bg-[#2A2A28] text-[#A29E99] font-mono">00시 ~ 23시</span>
+          </div>
+          <div class="h-64 relative">
+            <canvas id="hourlyActivityChart"></canvas>
+          </div>
+          <p class="text-xs text-[#A29E99] text-center pt-1">오전·오후·새벽 시간대별 단톡방 텐션 변화를 나타냅니다.</p>
+        </div>
+
+        <!-- 요일별 대화량 분포 -->
+        <div class="bg-[#222220] border border-[#383835] rounded-[32px] p-5 md:p-6 space-y-3 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
+          <div class="flex items-center justify-between">
+            <h4 class="text-sm font-bold text-[#EDE8E3] flex items-center gap-2">
+              <i class="fa-solid fa-calendar-week text-[#5B8DF5]"></i> 요일별 대화 집중도
+            </h4>
+            <span class="text-[11px] px-2.5 py-0.5 rounded-full bg-[#2A2A28] text-[#A29E99] font-mono">월 ~ 일</span>
+          </div>
+          <div class="h-64 relative">
+            <canvas id="weekdayActivityChart"></canvas>
+          </div>
+          <p class="text-xs text-[#A29E99] text-center pt-1">평일 과제/통학 vs 주말 휴식 패턴이 뚜렷하게 드러납니다.</p>
+        </div>
+      </div>
+
+      <!-- 키워드 클라우드 -->
+      <div class="bg-[#222220] border border-[#383835] rounded-[32px] p-5 md:p-6 space-y-4 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h4 class="text-base font-bold text-[#EDE8E3] flex items-center gap-2">
+              <i class="fa-solid fa-tags text-[#E0561B]"></i> 단톡방 최다 언급 시그니처 키워드 TOP 24
+            </h4>
+            <p class="text-xs text-[#A29E99] mt-0.5">전체 대화에서 가장 자주 등장한 단어들의 빈도수 랭킹입니다.</p>
+          </div>
+          <span class="text-xs text-[#A29E99] bg-[#2A2A28] px-2.5 py-1 rounded-full border border-[#383835] font-medium">자주 나온 단어일수록 강조</span>
+        </div>
+        <div class="flex flex-wrap gap-2.5 pt-2" id="roomKeywordsContainer"></div>
+      </div>
+
+      <!-- 멤버별 시그니처 말버릇 카드 그리드 -->
+      <div class="space-y-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <h4 class="text-base font-bold text-[#EDE8E3] flex items-center gap-2">
+              <i class="fa-solid fa-comment-dots text-[#5B8DF5]"></i> 멤버별 특유의 시그니처 말버릇 TOP 5
+            </h4>
+            <p class="text-xs text-[#A29E99]">각 참여자가 다른 친구들에 비해 압도적으로 자주 쓰는 입에 붙은 단어들입니다.</p>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" id="memberCatchphraseGrid"></div>
+      </div>
+
+    </section>
+
+    <!-- 탭 5: CTI 16가지 성향 도감 -->
+    <section id="tabEncyclopedia" class="tab-content hidden space-y-6">
+      <div class="space-y-1">
+        <h3 class="text-lg font-bold text-[#EDE8E3] flex items-center gap-2">
+          <i class="fa-solid fa-book-open text-[#E0561B]"></i> CTI 16가지 성향 도감 (채팅 MBTI 백과사전)
+        </h3>
+        <p class="text-xs text-[#A29E99]">카드를 클릭하면 상세 설명, 뼈 때리는 팩폭 피드백, 천생연분 및 파국 궁합을 확인하실 수 있습니다.</p>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4" id="reportEncyclopediaGrid"></div>
+    </section>
+
+  </main>
+
+  <!-- 인물 CTI 상세 모달 -->
+  <div id="typeDetailModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-[#222220] border border-[#383835] rounded-[40px] max-w-lg w-full p-6 space-y-4 relative max-h-[90vh] overflow-y-auto custom-scrollbar shadow-[0_24px_48px_rgba(0,0,0,0.5)]">
+      <button onclick="closeTypeDetailModal()" class="absolute top-4 right-4 text-[#A29E99] hover:text-[#EDE8E3] w-8 h-8 rounded-full bg-[#2A2A28] flex items-center justify-center transition border border-[#383835]">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+      <div id="typeModalContent"></div>
+    </div>
+  </div>
+
+  <!-- 인스타 / 카톡 공유용 포토카드 모달 -->
+  <div id="shareCardModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-[#222220] border border-[#383835] rounded-[40px] max-w-xl w-full p-5 md:p-6 space-y-5 relative max-h-[95vh] overflow-y-auto custom-scrollbar shadow-[0_24px_48px_rgba(0,0,0,0.5)]">
+      <!-- 닫기 버튼 -->
+      <button onclick="closeShareModal()" class="absolute top-5 right-5 text-[#A29E99] hover:text-[#EDE8E3] transition w-8 h-8 rounded-full bg-[#2A2A28] flex items-center justify-center border border-[#383835]">
+        <i class="fa-solid fa-xmark text-base"></i>
+      </button>
+
+      <!-- 모달 헤더 & 비율 토글 -->
+      <div class="space-y-3 pr-10">
+        <div class="flex items-center gap-2">
+          <span class="text-2xl">📸</span>
+          <div>
+            <h3 class="text-base md:text-lg font-black text-[#EDE8E3]">단톡방 CTI 공유 포토카드</h3>
+            <p class="text-xs text-[#A29E99]">인스타그램 스토리나 카카오톡 단톡방에 한 장으로 자랑해보세요!</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 pt-1">
+          <button id="btnRatioStory" onclick="setShareRatio('story')" class="px-4 py-2 rounded-[20px] text-xs font-medium bg-[#E0561B] text-white flex items-center gap-1.5 shadow-sm">
+            <i class="fa-brands fa-instagram"></i> 인스타 스토리 (9:16)
+          </button>
+          <button id="btnRatioSquare" onclick="setShareRatio('square')" class="px-4 py-2 rounded-[20px] text-xs font-medium border border-[#383835] bg-[#2A2A28] text-[#EDE8E3] flex items-center gap-1.5 hover:bg-[#323230]">
+            <i class="fa-solid fa-square"></i> 카톡 / 피드 (1:1)
+          </button>
+        </div>
+      </div>
+
+      <!-- 프리뷰 캔버스 래퍼 -->
+      <div class="flex justify-center items-center py-2 bg-[#181817] rounded-[24px] p-3 border border-[#383835] overflow-hidden">
+        <div id="shareCardWrapper" class="transition-all duration-300">
+          <div id="shareCardCanvas" class="bg-gradient-to-b from-slate-900 via-slate-950 to-indigo-950 border-2 border-yellow-500/40 rounded-3xl p-6 text-white flex flex-col justify-between shadow-2xl relative overflow-hidden" style="width: 380px; min-height: 580px;">
+            <div class="absolute -top-12 -left-12 w-48 h-48 bg-yellow-500/15 rounded-full blur-3xl pointer-events-none"></div>
+            <div class="absolute -bottom-12 -right-12 w-48 h-48 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none"></div>
+
+            <div class="relative z-10 space-y-2 border-b border-slate-800/80 pb-3">
+              <div class="flex items-center justify-between">
+                <span class="text-[10px] font-mono font-bold tracking-widest text-yellow-400 uppercase bg-yellow-400/10 px-2 py-0.5 rounded border border-yellow-400/20">CTI FRIENDSHIP REPORT</span>
+                <span id="cardGradeBadge" class="text-xs font-black px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">우정 S+</span>
+              </div>
+              <h2 id="cardRoomTitle" class="text-lg font-black text-white tracking-tight truncate">단톡방 분석 리포트</h2>
+              <div class="flex items-center gap-2 text-[11px] text-slate-400">
+                <span id="cardDateRange">2026.03 ~ 2026.09</span>
+                <span>•</span>
+                <span>총 <strong id="cardTotalMsgs" class="text-yellow-400">13,640</strong>건</span>
+              </div>
+            </div>
+
+            <div class="relative z-10 py-3 space-y-2 flex-grow">
+              <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                <i class="fa-solid fa-users text-yellow-400"></i> 단톡방 CTI 페르소나
+              </p>
+              <div class="grid grid-cols-2 gap-2" id="cardMembersGrid"></div>
+            </div>
+
+            <div class="relative z-10 space-y-2.5 pt-1">
+              <div class="bg-slate-900/90 border border-indigo-500/40 rounded-xl p-2.5 flex items-center justify-between">
+                <div class="flex items-center gap-2 min-w-0">
+                  <span class="text-base">🏆</span>
+                  <div class="min-w-0">
+                    <p class="text-[9px] text-indigo-300 font-bold">1:1 최강 영혼의 단짝</p>
+                    <p class="text-xs font-black text-white truncate" id="cardTopPair">박상원 ↔ 박현준</p>
+                  </div>
+                </div>
+                <span class="text-[11px] font-mono font-black text-yellow-400 bg-yellow-400/10 px-2 py-0.5 rounded shrink-0" id="cardTopPairScore">98점</span>
+              </div>
+
+              <div class="p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-center">
+                <p class="text-[11px] text-slate-200 font-medium leading-relaxed italic" id="cardGroupVibe">
+                  "끈끈한 과제 협업과 통학 고통 분담이 돋보이는 찰떡 단톡방!"
+                </p>
+              </div>
+            </div>
+
+            <div class="relative z-10 pt-3 border-t border-slate-800/80 flex items-center justify-between text-[9px] text-slate-500">
+              <div class="flex items-center gap-1.5 font-bold text-slate-400">
+                <span>💬</span>
+                <span>단톡방 CTI 팩폭 리포트</span>
+              </div>
+              <span>100% 로컬 AI 분석</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 다운로드 버튼 -->
+      <div class="flex items-center justify-end gap-3 pt-1">
+        <button onclick="closeShareModal()" class="px-4 py-2 bg-[#2A2A28] hover:bg-[#323230] text-[#EDE8E3] text-xs font-semibold rounded-[20px] transition border border-[#383835]">
+          닫기
+        </button>
+        <button onclick="downloadShareCard()" class="px-5 py-2.5 bg-[#E0561B] hover:opacity-90 text-white text-xs font-black rounded-[20px] transition flex items-center gap-2 shadow-sm">
+          <i class="fa-solid fa-download"></i> <span>이미지(PNG) 다운로드</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 푸터 -->
+  <footer class="bg-[#111110] py-20 text-center text-xs text-[#A29E99] border-t border-[#222220]">
+    <p class="text-[#EDE8E3] font-medium">단톡방 CTI 성향 분석 &amp; 팩폭 리포트 • 100% 브라우저 로컬 실행</p>
+    <p class="mt-1">재미와 유대감을 위한 엔터테인먼트 도구입니다.</p>
+  </footer>
+
+  <script src="cti_system.js"></script>
+  <script src="sample_data.js"></script>
+  <script src="parser.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
