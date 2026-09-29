@@ -157,25 +157,35 @@ function showReportView() {
   document.getElementById("reportView").classList.remove("hidden");
   document.getElementById("navBackBtn").classList.remove("hidden");
   document.getElementById("navUploadBtn").classList.add("hidden");
-  switchTab("tabOverview");
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  
+  // 처음 분석 후 들어왔을 때는 2x2 메뉴 대시보드만 표시
+  returnToReportHome();
 }
 
-function switchTab(tabId) {
-  document.querySelectorAll(".tab-content").forEach(el => el.classList.add("hidden"));
-  document.querySelectorAll(".tab-btn").forEach(btn => {
-    btn.classList.remove("bg-[#f6f8fa]", "text-[#030708]", "font-bold", "bg-[#f5b73d]", "text-white");
-    btn.classList.add("text-[#848c96]");
-  });
+// 2x2 버튼을 눌렀을 때: 대시보드(헤더+2x2버튼) 숨기고 해당 세부 내용만 표시
+function openReportDetail(tabId) {
+  const homeDashboard = document.getElementById("reportHomeDashboard");
+  const detailSection = document.getElementById("reportDetailSection");
+  if (homeDashboard) homeDashboard.classList.add("hidden");
+  if (detailSection) detailSection.classList.remove("hidden");
 
+  // 상세 뱃지 제목 변경
+  const badgeTitleMap = {
+    tabOverview: "🏆 종합 우정 성적표",
+    tabCharacters: "🪪 인물별 CTI 팩폭 카드",
+    tabChemistry: "⚡ 1:1 케미 & 궁합 랭킹",
+    tabActivity: "📈 활동 패턴 & 시그니처 키워드",
+    tabEncyclopedia: "📖 CTI 16가지 성향 도감"
+  };
+  const badgeEl = document.getElementById("detailViewBadgeTitle");
+  if (badgeEl && badgeTitleMap[tabId]) {
+    badgeEl.innerText = badgeTitleMap[tabId];
+  }
+
+  // 모든 세부 탭 숨김 후 대상 탭 노출
+  document.querySelectorAll(".tab-content").forEach(el => el.classList.add("hidden"));
   const targetTab = document.getElementById(tabId);
   if (targetTab) targetTab.classList.remove("hidden");
-
-  const activeBtn = document.querySelector(`.tab-btn[data-target="${tabId}"]`);
-  if (activeBtn) {
-    activeBtn.classList.remove("text-[#848c96]");
-    activeBtn.classList.add("bg-[#f6f8fa]", "text-[#030708]", "font-bold");
-  }
 
   if (tabId === "tabCharacters") {
     setTimeout(renderAllRadarCharts, 50);
@@ -183,6 +193,24 @@ function switchTab(tabId) {
   if (tabId === "tabActivity") {
     setTimeout(renderActivityCharts, 50);
   }
+
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+// 상세 페이지에서 '전체 메뉴로 돌아가기'를 눌렀을 때
+function returnToReportHome() {
+  const homeDashboard = document.getElementById("reportHomeDashboard");
+  const detailSection = document.getElementById("reportDetailSection");
+  if (homeDashboard) homeDashboard.classList.remove("hidden");
+  if (detailSection) detailSection.classList.add("hidden");
+
+  // 모든 세부 탭 숨김
+  document.querySelectorAll(".tab-content").forEach(el => el.classList.add("hidden"));
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function switchTab(tabId) {
+  openReportDetail(tabId);
 }
 
 function renderCurrentData() {

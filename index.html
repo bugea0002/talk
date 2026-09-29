@@ -263,98 +263,147 @@
   <!-- ==================== 2. 분석 결과 리포트 뷰 ==================== -->
   <main id="reportView" class="max-w-6xl mx-auto px-4 py-6 space-y-6 w-full flex-grow hidden">
 
-    <!-- 단톡방 정보 헤더 바 -->
-    <div class="flex flex-wrap items-center justify-between gap-4 bg-[#090e13] border border-white/[0.08] rounded-[32px] p-5 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
-      <div class="flex items-center gap-3">
-        <span class="text-3xl" id="roomIcon">🏆</span>
-        <div>
-          <h3 class="text-lg font-black text-[#f6f8fa] flex items-center gap-2">
-            <span id="roomTitle">단톡방 분석 리포트</span>
-            <span id="roomGradeBadge" class="text-xs px-2.5 py-0.5 rounded-full bg-[#111820] text-[#f6f8fa] font-bold border border-white/[0.08]">우정 S+</span>
-          </h3>
-          <p class="text-xs text-[#848c96] mt-0.5" id="roomSubText">분석 완료</p>
-        </div>
-      </div>
-      <div class="flex items-center gap-2">
-        <button onclick="toggleAnonymize()" id="btnAnonymize" class="px-3 py-1.5 bg-[#111820] hover:bg-[#16202a] text-[#f6f8fa] text-xs font-semibold rounded-[20px] border border-white/[0.08] transition flex items-center gap-1.5">
-          <i class="fa-solid fa-user-secret"></i> <span id="anonymizeText">가명 모드</span>
-        </button>
-        <button onclick="openShareModal()" class="px-3.5 py-1.5 bg-[#f5b73d] hover:opacity-90 text-[#030708] text-xs font-black rounded-[20px] transition flex items-center gap-1.5 shadow-sm">
-          <i class="fa-solid fa-sparkles"></i> <span>포토카드 공유</span>
-        </button>
-        <button onclick="captureCurrentTab()" class="px-3 py-1.5 bg-[#111820] hover:bg-[#16202a] text-[#f6f8fa] text-xs font-semibold rounded-[20px] border border-white/[0.08] transition flex items-center gap-1.5">
-          <i class="fa-solid fa-camera"></i> 화면 캡처
-        </button>
-        <button onclick="showLandingView()" class="px-3 py-1.5 bg-[#111820] hover:bg-[#16202a] text-[#f6f8fa] text-xs font-semibold rounded-[20px] border border-white/[0.08] transition flex items-center gap-1.5">
-          <i class="fa-solid fa-arrow-rotate-left"></i> 새 파일
-        </button>
-      </div>
-    </div>
-
-    <!-- '내 중심' 관계도 필터 바 -->
-    <div class="bg-[#090e13] border border-white/[0.08] rounded-[24px] p-4 flex flex-wrap items-center justify-between gap-3 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
-      <div class="flex items-center gap-2.5">
-        <span class="text-xs font-bold text-[#f5b73d] px-2.5 py-1 bg-[rgba(245, 183, 61,0.12)] rounded-full border border-[rgba(245, 183, 61,0.3)] flex items-center gap-1.5">
-          <i class="fa-solid fa-crosshairs"></i> 내 시점 맞춤 보기
-        </span>
-        <span class="text-xs text-[#848c96] hidden sm:inline">본인 이름을 클릭하면 나 중심의 케미 순위와 분석으로 맞춤 전환됩니다</span>
-      </div>
-      <div class="flex items-center gap-1.5 flex-wrap" id="focusMemberFilterContainer">
-        <!-- 동적 렌더링 -->
-      </div>
-    </div>
-
-    <!-- 내 중심 포커스 요약 배너 -->
-    <div id="focusBanner" class="hidden bg-[#090e13] border border-[rgba(245, 183, 61,0.35)] rounded-[24px] p-5 space-y-3 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
-      <div class="flex flex-wrap items-center justify-between gap-3">
+    <!-- [A] 리포트 홈 대시보드 (분석 완료 시 처음 보이는 화면: 헤더 + 2x2 메뉴만 제시) -->
+    <div id="reportHomeDashboard" class="space-y-8 py-4">
+      <!-- 1. 단톡방 헤더 (단톡방 이름 & 우정 등급 중심의 미니멀 헤더) -->
+      <div class="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-white/[0.08]">
         <div class="flex items-center gap-3">
-          <span class="text-3xl" id="focusAvatar">🔥</span>
+          <span class="text-3xl sm:text-4xl" id="roomIcon">🏆</span>
           <div>
-            <h4 class="text-base font-black text-[#f6f8fa] flex items-center gap-2">
-              <span id="focusName">박상원</span> 중심 우정 & 관계도 리포트
-              <span id="focusCtiBadge" class="text-xs px-2.5 py-0.5 rounded-full bg-[#f5b73d] text-white font-bold">ESFR</span>
-            </h4>
-            <p class="text-xs text-[#848c96] mt-0.5" id="focusPersonaText">새벽의 망령 👻</p>
+            <div class="flex items-center gap-2.5 flex-wrap">
+              <h3 class="text-xl sm:text-2xl font-black text-[#f6f8fa] tracking-tight" id="roomTitle">단톡방 분석 리포트</h3>
+              <span id="roomGradeBadge" class="text-xs px-3 py-1 rounded-full bg-[#f5b73d] text-[#030708] font-black shadow-sm">우정 S+</span>
+            </div>
+            <p class="text-xs text-[#848c96] mt-1" id="roomSubText">분석 완료</p>
           </div>
         </div>
-        <button onclick="clearFocusMember()" class="text-xs px-3 py-1.5 bg-[#111820] hover:bg-[#16202a] text-[#f6f8fa] rounded-[20px] transition border border-white/[0.08] flex items-center gap-1.5">
-          <i class="fa-solid fa-xmark"></i> 전체 시점으로 복귀
-        </button>
+        <div class="flex items-center gap-2 flex-wrap">
+          <button onclick="toggleAnonymize()" id="btnAnonymize" class="px-3 py-1.5 bg-[#111820] hover:bg-[#16202a] text-[#f6f8fa] text-xs font-semibold rounded-[20px] border border-white/[0.08] transition flex items-center gap-1.5">
+            <i class="fa-solid fa-user-secret"></i> <span id="anonymizeText">가명 모드</span>
+          </button>
+          <button onclick="openShareModal()" class="px-3.5 py-1.5 bg-[#f5b73d] hover:opacity-90 text-[#030708] text-xs font-black rounded-[20px] transition flex items-center gap-1.5 shadow-sm">
+            <i class="fa-solid fa-sparkles"></i> <span>포토카드 공유</span>
+          </button>
+          <button onclick="showLandingView()" class="px-3 py-1.5 bg-[#111820] hover:bg-[#16202a] text-[#f6f8fa] text-xs font-semibold rounded-[20px] border border-white/[0.08] transition flex items-center gap-1.5">
+            <i class="fa-solid fa-arrow-rotate-left"></i> 새 파일
+          </button>
+        </div>
       </div>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
-        <div class="bg-[#030708] border border-white/[0.08] rounded-xl p-3">
-          <p class="text-[11px] text-[#848c96] font-medium">나와 최고 영혼의 단짝</p>
-          <p class="text-sm font-bold text-[#f5b73d] mt-1" id="focusTopSoulmate">-</p>
-        </div>
-        <div class="bg-[#030708] border border-white/[0.08] rounded-xl p-3">
-          <p class="text-[11px] text-[#848c96] font-medium">나의 대표 시그니처 말버릇</p>
-          <p class="text-sm font-bold text-[#f6f8fa] mt-1" id="focusTopWords">-</p>
-        </div>
-        <div class="bg-[#030708] border border-white/[0.08] rounded-xl p-3">
-          <p class="text-[11px] text-[#848c96] font-medium">나의 주 활동 피크 타임</p>
-          <p class="text-sm font-bold text-[#f5b73d] mt-1" id="focusActiveHours">-</p>
-        </div>
+
+      <!-- 안내 문구 -->
+      <div class="text-center space-y-1 pt-2">
+        <p class="text-xs font-bold text-[#f5b73d] uppercase tracking-widest">ANALYSIS COMPLETE</p>
+        <h3 class="text-lg sm:text-xl font-black text-[#f6f8fa]">확인하고 싶은 분석 리포트를 선택하세요</h3>
+        <p class="text-xs text-[#848c96]">카드를 누르면 해당 상세 분석 화면으로 바로 이동합니다.</p>
+      </div>
+
+      <!-- 2. 네가지 2x2 라운드 스퀘어 네비게이션 버튼 (대형 카드 스타일) -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-3xl mx-auto">
+        <!-- 1. 종합 우정 성적표 -->
+        <button onclick="openReportDetail('tabOverview')" class="menu-nav-btn group text-left p-6 sm:p-7 rounded-[32px] border transition-all duration-300 bg-[#090e13] border-white/[0.08] hover:border-[#f5b73d] hover:bg-[#111820] hover:-translate-y-1 shadow-[0_4px_24px_rgba(0,0,0,0.3)]">
+          <div class="w-12 h-12 rounded-2xl bg-[#111820] text-[#f5b73d] group-hover:bg-[#f5b73d] group-hover:text-[#030708] flex items-center justify-center text-xl mb-4 border border-white/[0.08] transition-all">
+            <i class="fa-solid fa-award"></i>
+          </div>
+          <h4 class="text-base sm:text-lg font-black text-[#f6f8fa] tracking-tight group-hover:text-[#f5b73d] transition-colors">종합 우정 성적표</h4>
+          <p class="text-xs text-[#848c96] mt-1.5 leading-relaxed">알고리즘 톡방 총평, 폭력·평화 지수, 발화 랭킹 및 멤버 구성 라인업</p>
+        </button>
+
+        <!-- 2. 인물별 CTI 팩폭 카드 -->
+        <button onclick="openReportDetail('tabCharacters')" class="menu-nav-btn group text-left p-6 sm:p-7 rounded-[32px] border transition-all duration-300 bg-[#090e13] border-white/[0.08] hover:border-[#f5b73d] hover:bg-[#111820] hover:-translate-y-1 shadow-[0_4px_24px_rgba(0,0,0,0.3)]">
+          <div class="w-12 h-12 rounded-2xl bg-[#111820] text-[#f5b73d] group-hover:bg-[#f5b73d] group-hover:text-[#030708] flex items-center justify-center text-xl mb-4 border border-white/[0.08] transition-all">
+            <i class="fa-solid fa-address-card"></i>
+          </div>
+          <h4 class="text-base sm:text-lg font-black text-[#f6f8fa] tracking-tight group-hover:text-[#f5b73d] transition-colors">인물별 CTI 팩폭 카드</h4>
+          <p class="text-xs text-[#848c96] mt-1.5 leading-relaxed">개인별 4대 지표 레이더 차트, 시그니처 대사, 뼈 때리는 팩폭 신상명세서</p>
+        </button>
+
+        <!-- 3. 1:1 케미 & 궁합 랭킹 -->
+        <button onclick="openReportDetail('tabChemistry')" class="menu-nav-btn group text-left p-6 sm:p-7 rounded-[32px] border transition-all duration-300 bg-[#090e13] border-white/[0.08] hover:border-[#38bdf8] hover:bg-[#111820] hover:-translate-y-1 shadow-[0_4px_24px_rgba(0,0,0,0.3)]">
+          <div class="w-12 h-12 rounded-2xl bg-[#111820] text-[#38bdf8] group-hover:bg-[#38bdf8] group-hover:text-[#030708] flex items-center justify-center text-xl mb-4 border border-white/[0.08] transition-all">
+            <i class="fa-solid fa-heart-circle-bolt"></i>
+          </div>
+          <h4 class="text-base sm:text-lg font-black text-[#f6f8fa] tracking-tight group-hover:text-[#38bdf8] transition-colors">1:1 케미 &amp; 궁합 랭킹</h4>
+          <p class="text-xs text-[#848c96] mt-1.5 leading-relaxed">단톡방 최고 영혼의 단짝 순위, 티키타카 상호작용 및 1:1 궁합 시뮬레이터</p>
+        </button>
+
+        <!-- 4. 활동 패턴 & 시그니처 키워드 -->
+        <button onclick="openReportDetail('tabActivity')" class="menu-nav-btn group text-left p-6 sm:p-7 rounded-[32px] border transition-all duration-300 bg-[#090e13] border-white/[0.08] hover:border-emerald-400 hover:bg-[#111820] hover:-translate-y-1 shadow-[0_4px_24px_rgba(0,0,0,0.3)]">
+          <div class="w-12 h-12 rounded-2xl bg-[#111820] text-emerald-400 group-hover:bg-emerald-400 group-hover:text-[#030708] flex items-center justify-center text-xl mb-4 border border-white/[0.08] transition-all">
+            <i class="fa-solid fa-chart-line"></i>
+          </div>
+          <h4 class="text-base sm:text-lg font-black text-[#f6f8fa] tracking-tight group-hover:text-emerald-400 transition-colors">활동 패턴 &amp; 키워드</h4>
+          <p class="text-xs text-[#848c96] mt-1.5 leading-relaxed">24시간 타임라인, 요일별 집중도, 새벽의 망령, 시그니처 단어 TOP 24</p>
+        </button>
       </div>
     </div>
 
-    <!-- 네비게이션 탭 -->
-    <nav class="flex bg-[#090e13] border border-white/[0.08] rounded-full p-1.5 gap-1 overflow-x-auto custom-scrollbar">
-      <button onclick="switchTab('tabOverview')" class="tab-btn px-4 py-2 text-sm font-medium bg-[#f5b73d] text-white rounded-full flex items-center gap-2 shrink-0 transition" data-target="tabOverview">
-        <i class="fa-solid fa-award"></i> 종합 우정 성적표
-      </button>
-      <button onclick="switchTab('tabCharacters')" class="tab-btn px-4 py-2 text-sm font-medium text-[#848c96] hover:text-[#f6f8fa] flex items-center gap-2 shrink-0 transition" data-target="tabCharacters">
-        <i class="fa-solid fa-address-card"></i> 인물별 CTI 팩폭 카드
-      </button>
-      <button onclick="switchTab('tabChemistry')" class="tab-btn px-4 py-2 text-sm font-medium text-[#848c96] hover:text-[#f6f8fa] flex items-center gap-2 shrink-0 transition" data-target="tabChemistry">
-        <i class="fa-solid fa-heart-circle-bolt"></i> 1:1 케미 &amp; 궁합 랭킹
-      </button>
-      <button onclick="switchTab('tabActivity')" class="tab-btn px-4 py-2 text-sm font-medium text-[#848c96] hover:text-[#f6f8fa] flex items-center gap-2 shrink-0 transition" data-target="tabActivity">
-        <i class="fa-solid fa-chart-line"></i> 활동 패턴 &amp; 시그니처 키워드
-      </button>
-      <button onclick="switchTab('tabEncyclopedia')" class="tab-btn px-4 py-2 text-sm font-medium text-[#848c96] hover:text-[#f6f8fa] flex items-center gap-2 shrink-0 transition" data-target="tabEncyclopedia">
-        <i class="fa-solid fa-book-bookmark"></i> CTI 16가지 성향 도감
-      </button>
-    </nav>
+    <!-- [B] 세부 내용 페이지 컨테이너 (버튼 클릭 시 표시되며, 상단에는 깔끔한 뒤로가기 헤더만 제시) -->
+    <div id="reportDetailSection" class="space-y-6 hidden">
+      <!-- 상세 뷰 전용 상단 툴바 (메뉴로 돌아가기 & 현재 리포트명 & 빠른 공유/캡처) -->
+      <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-white/[0.08]">
+        <button onclick="returnToReportHome()" class="px-4 py-2 rounded-full bg-[#111820] hover:bg-[#16202a] text-[#f6f8fa] hover:text-[#f5b73d] text-xs font-bold border border-white/[0.08] transition flex items-center gap-2 shadow-sm">
+          <i class="fa-solid fa-arrow-left"></i>
+          <span>전체 메뉴로 돌아가기</span>
+        </button>
+
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-bold text-[#f5b73d] px-2.5 py-1 bg-[rgba(245,183,61,0.12)] rounded-full border border-[rgba(245,183,61,0.3)]" id="detailViewBadgeTitle">
+            종합 성적표
+          </span>
+          <button onclick="captureCurrentTab()" class="px-3 py-1.5 bg-[#111820] hover:bg-[#16202a] text-[#f6f8fa] text-xs font-semibold rounded-[20px] border border-white/[0.08] transition flex items-center gap-1.5">
+            <i class="fa-solid fa-camera"></i> 화면 캡처
+          </button>
+          <button onclick="openShareModal()" class="px-3 py-1.5 bg-[#f5b73d] hover:opacity-90 text-[#030708] text-xs font-black rounded-[20px] transition flex items-center gap-1.5 shadow-sm">
+            <i class="fa-solid fa-sparkles"></i> <span>포토카드</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 각 페이지 공통 시점별 맞춤보기 바 (페이지 내부에서 동작) -->
+      <div id="pageFocusControlBar" class="bg-[#090e13] border border-white/[0.08] rounded-[24px] px-4 py-3 flex flex-wrap items-center justify-between gap-3 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-bold text-[#f5b73d] px-2.5 py-1 bg-[rgba(245, 183, 61,0.12)] rounded-full border border-[rgba(245, 183, 61,0.3)] flex items-center gap-1.5">
+            <i class="fa-solid fa-crosshairs"></i> 시점별 맞춤보기
+          </span>
+          <span class="text-xs text-[#848c96] hidden sm:inline">멤버를 선택하면 해당 인물 중심 데이터로 필터링됩니다</span>
+        </div>
+        <div class="flex items-center gap-1.5 flex-wrap" id="focusMemberFilterContainer">
+          <!-- 멤버 버튼 동적 렌더링 -->
+        </div>
+      </div>
+
+      <!-- 선택된 멤버 포커스 요약 배너 -->
+      <div id="focusBanner" class="hidden bg-[#090e13] border border-[rgba(245, 183, 61,0.35)] rounded-[24px] p-4 sm:p-5 space-y-3 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-3">
+            <span class="text-2xl sm:text-3xl" id="focusAvatar">🔥</span>
+            <div>
+              <h4 class="text-sm sm:text-base font-black text-[#f6f8fa] flex items-center gap-2">
+                <span id="focusName">멤버</span> 중심 맞춤 리포트
+                <span id="focusCtiBadge" class="text-xs px-2.5 py-0.5 rounded-full bg-[#f5b73d] text-[#030708] font-bold">CTI</span>
+              </h4>
+              <p class="text-xs text-[#848c96] mt-0.5" id="focusPersonaText">-</p>
+            </div>
+          </div>
+          <button onclick="clearFocusMember()" class="text-xs px-3 py-1.5 bg-[#111820] hover:bg-[#16202a] text-[#f6f8fa] rounded-[20px] transition border border-white/[0.08] flex items-center gap-1.5">
+            <i class="fa-solid fa-xmark"></i> 전체 시점으로 복귀
+          </button>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1">
+          <div class="bg-[#030708] border border-white/[0.08] rounded-xl p-3">
+            <p class="text-[11px] text-[#848c96] font-medium">나와 최고 영혼의 단짝</p>
+            <p class="text-xs sm:text-sm font-bold text-[#f5b73d] mt-1" id="focusTopSoulmate">-</p>
+          </div>
+          <div class="bg-[#030708] border border-white/[0.08] rounded-xl p-3">
+            <p class="text-[11px] text-[#848c96] font-medium">나의 대표 시그니처 말버릇</p>
+            <p class="text-xs sm:text-sm font-bold text-[#f6f8fa] mt-1" id="focusTopWords">-</p>
+          </div>
+          <div class="bg-[#030708] border border-white/[0.08] rounded-xl p-3">
+            <p class="text-[11px] text-[#848c96] font-medium">나의 주 활동 피크 타임</p>
+            <p class="text-xs sm:text-sm font-bold text-[#f5b73d] mt-1" id="focusActiveHours">-</p>
+          </div>
+        </div>
+      </div>
 
     <!-- 탭 1: 종합 우정 성적표 -->
     <section id="tabOverview" class="tab-content space-y-6">
@@ -558,16 +607,17 @@
 
     </section>
 
-    <!-- 탭 5: CTI 16가지 성향 도감 -->
-    <section id="tabEncyclopedia" class="tab-content hidden space-y-6">
-      <div class="space-y-1">
-        <h3 class="text-lg font-bold text-[#f6f8fa] flex items-center gap-2">
-          <i class="fa-solid fa-book-open text-[#f5b73d]"></i> CTI 16가지 성향 도감 (채팅 MBTI 백과사전)
-        </h3>
-        <p class="text-xs text-[#848c96]">카드를 클릭하면 상세 설명, 뼈 때리는 팩폭 피드백, 천생연분 및 파국 궁합을 확인하실 수 있습니다.</p>
-      </div>
-      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4" id="reportEncyclopediaGrid"></div>
-    </section>
+      <!-- 탭 5: CTI 16가지 성향 도감 -->
+      <section id="tabEncyclopedia" class="tab-content hidden space-y-6">
+        <div class="space-y-1">
+          <h3 class="text-lg font-bold text-[#f6f8fa] flex items-center gap-2">
+            <i class="fa-solid fa-book-open text-[#f5b73d]"></i> CTI 16가지 성향 도감 (채팅 MBTI 백과사전)
+          </h3>
+          <p class="text-xs text-[#848c96]">카드를 클릭하면 상세 설명, 뼈 때리는 팩폭 피드백, 천생연분 및 파국 궁합을 확인하실 수 있습니다.</p>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4" id="reportEncyclopediaGrid"></div>
+      </section>
+    </div>
 
   </main>
 
