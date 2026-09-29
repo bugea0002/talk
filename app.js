@@ -18,7 +18,7 @@ function getCtiBadgeStyle(cti) {
     "ELTR": { bg: "rgba(234, 179, 8, 0.18)",  text: "#FACC15", border: "rgba(234, 179, 8, 0.4)" },
     "ESFA": { bg: "rgba(236, 72, 153, 0.18)", text: "#F472B6", border: "rgba(236, 72, 153, 0.4)" },
     "ESFR": { bg: "rgba(217, 70, 239, 0.18)", text: "#E879F9", border: "rgba(217, 70, 239, 0.4)" },
-    "ESTA": { bg: "rgba(224, 86, 27, 0.22)", text: "#FF7A45", border: "rgba(224, 86, 27, 0.5)" },
+    "ESTA": { bg: "rgba(245, 183, 61, 0.22)", text: "#FF7A45", border: "rgba(245, 183, 61, 0.5)" },
     "ESTR": { bg: "rgba(245, 158, 11, 0.18)", text: "#FBBF24", border: "rgba(245, 158, 11, 0.4)" },
     // I계열 (관조/신중)
     "ILFA": { bg: "rgba(168, 85, 247, 0.18)", text: "#C084FC", border: "rgba(168, 85, 247, 0.4)" },
@@ -30,7 +30,7 @@ function getCtiBadgeStyle(cti) {
     "ISTA": { bg: "rgba(100, 116, 139, 0.25)", text: "#CBD5E1", border: "rgba(148, 163, 184, 0.4)" },
     "ISTR": { bg: "rgba(71, 85, 105, 0.28)", text: "#94A3B8", border: "rgba(100, 116, 139, 0.45)" }
   };
-  return styles[cti] || { bg: "rgba(255, 255, 255, 0.08)", text: "#EDE8E3", border: "#383835" };
+  return styles[cti] || { bg: "rgba(255, 255, 255, 0.08)", text: "#f6f8fa", border: "rgba(255,255,255,0.08)" };
 }
 
 // 뱃지 HTML 생성 헬퍼
@@ -53,16 +53,16 @@ function setupMainDragAndDrop() {
   if (dropZone) {
     dropZone.addEventListener("dragover", (e) => {
       e.preventDefault();
-      dropZone.classList.add("border-[#E0561B]", "bg-[#2A2A28]");
+      dropZone.classList.add("border-[#f5b73d]", "bg-[#111820]");
     });
 
     dropZone.addEventListener("dragleave", () => {
-      dropZone.classList.remove("border-[#E0561B]", "bg-[#2A2A28]");
+      dropZone.classList.remove("border-[#f5b73d]", "bg-[#111820]");
     });
 
     dropZone.addEventListener("drop", (e) => {
       e.preventDefault();
-      dropZone.classList.remove("border-[#E0561B]", "bg-[#2A2A28]");
+      dropZone.classList.remove("border-[#f5b73d]", "bg-[#111820]");
       if (e.dataTransfer.files.length > 0) {
         processFile(e.dataTransfer.files[0]);
       }
@@ -93,27 +93,40 @@ function processFile(file) {
     return;
   }
 
+  const loadingOverlay = document.getElementById("loadingOverlay");
+  const loadingSubText = document.getElementById("loadingSubText");
+  if (loadingOverlay) {
+    const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
+    if (loadingSubText) {
+      loadingSubText.innerText = `파일 크기: ${sizeMb}MB • 전체 대화 전문을 100% 전수 분석 중입니다.`;
+    }
+    loadingOverlay.classList.remove("hidden");
+  }
+
   const reader = new FileReader();
   reader.onload = function(evt) {
-    try {
-      const text = evt.target.result;
-      const report = window.KAKAO_PARSER.parseText(text);
-      report.roomName = file.name.replace(".txt", "").replace("KakaoTalk_", "카톡 단톡방 ");
-      
-      currentData = report;
-      originalDataCache = JSON.parse(JSON.stringify(report));
-      isAnonymized = false;
-      focusedMemberId = null;
-      updateAnonymizeButtonText();
+    setTimeout(() => {
+      try {
+        const text = evt.target.result;
+        const report = window.KAKAO_PARSER.parseText(text);
+        report.roomName = file.name.replace(".txt", "").replace("KakaoTalk_", "카톡 단톡방 ");
+        
+        currentData = report;
+        originalDataCache = JSON.parse(JSON.stringify(report));
+        isAnonymized = false;
+        focusedMemberId = null;
+        updateAnonymizeButtonText();
 
-      showReportView();
-      renderCurrentData();
-      triggerConfetti();
-      alert(`🎉 분석 완료!\n총 ${report.totalMessages.toLocaleString()}건의 대화와 ${report.members.length}명의 CTI 성향을 도출했습니다.`);
-    } catch (err) {
-      alert("파일 파싱 실패: " + err.message);
-      console.error(err);
-    }
+        showReportView();
+        renderCurrentData();
+        triggerConfetti();
+      } catch (err) {
+        alert("파일 분석 실패: " + err.message);
+        console.error(err);
+      } finally {
+        if (loadingOverlay) loadingOverlay.classList.add("hidden");
+      }
+    }, 50);
   };
   reader.readAsText(file, "UTF-8");
 }
@@ -151,8 +164,8 @@ function showReportView() {
 function switchTab(tabId) {
   document.querySelectorAll(".tab-content").forEach(el => el.classList.add("hidden"));
   document.querySelectorAll(".tab-btn").forEach(btn => {
-    btn.classList.remove("bg-[#E0561B]", "text-white");
-    btn.classList.add("text-[#A29E99]");
+    btn.classList.remove("bg-[#f6f8fa]", "text-[#030708]", "font-bold", "bg-[#f5b73d]", "text-white");
+    btn.classList.add("text-[#848c96]");
   });
 
   const targetTab = document.getElementById(tabId);
@@ -160,8 +173,8 @@ function switchTab(tabId) {
 
   const activeBtn = document.querySelector(`.tab-btn[data-target="${tabId}"]`);
   if (activeBtn) {
-    activeBtn.classList.remove("text-[#A29E99]");
-    activeBtn.classList.add("bg-[#E0561B]", "text-white");
+    activeBtn.classList.remove("text-[#848c96]");
+    activeBtn.classList.add("bg-[#f6f8fa]", "text-[#030708]", "font-bold");
   }
 
   if (tabId === "tabCharacters") {
@@ -180,6 +193,22 @@ function renderCurrentData() {
   document.getElementById("roomSubText").innerText = `${currentData.dateRange} • 총 ${currentData.totalMessages.toLocaleString()}건 분석`;
 
   document.getElementById("statTension").innerText = `${currentData.tensionIndex}%`;
+  const peaceBadge = document.getElementById("statPeaceBadge");
+  const tensionDescEl = document.getElementById("statTensionDesc");
+  if (peaceBadge) {
+    peaceBadge.innerText = `평화 ${currentData.peaceIndex || (100 - currentData.tensionIndex)}%`;
+    if (currentData.tensionIndex >= 30) {
+      peaceBadge.className = "text-xs text-rose-300 bg-rose-950/60 px-2 py-0.5 rounded-full border border-rose-800/60";
+    } else if (currentData.tensionIndex >= 10) {
+      peaceBadge.className = "text-xs text-amber-300 bg-amber-950/60 px-2 py-0.5 rounded-full border border-amber-800/60";
+    } else {
+      peaceBadge.className = "text-xs text-emerald-300 bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-800/60";
+    }
+  }
+  if (tensionDescEl && currentData.tensionDesc) {
+    tensionDescEl.innerText = currentData.tensionDesc;
+  }
+
   document.getElementById("statTotalMsgs").innerText = currentData.totalMessages.toLocaleString();
   
   if (currentData.members.length > 0) {
@@ -212,7 +241,7 @@ function renderFocusFilterBar() {
 
   const allBtn = document.createElement("button");
   const isAll = focusedMemberId === null;
-  allBtn.className = `px-4 py-1.5 rounded-full text-xs font-medium transition flex items-center gap-1.5 ${isAll ? 'bg-[#E0561B] text-white' : 'bg-[#2A2A28] text-[#EDE8E3] hover:bg-[#323230] border border-[#383835]'}`;
+  allBtn.className = `px-4 py-1.5 rounded-full text-xs font-medium transition flex items-center gap-1.5 ${isAll ? 'bg-[#f6f8fa] text-[#030708] font-bold shadow-sm' : 'bg-[#111820] text-[#f6f8fa] hover:bg-[#16202a] border border-white/[0.08]'}`;
   allBtn.innerHTML = `<i class="fa-solid fa-users text-[11px]"></i> <span>전체 시점</span>`;
   allBtn.onclick = () => clearFocusMember();
   container.appendChild(allBtn);
@@ -220,7 +249,7 @@ function renderFocusFilterBar() {
   currentData.members.forEach(m => {
     const isFocused = focusedMemberId === m.id || focusedMemberId === m.name;
     const btn = document.createElement("button");
-    btn.className = `px-4 py-1.5 rounded-full text-xs font-medium transition flex items-center gap-1.5 ${isFocused ? 'bg-[#E0561B] text-white' : 'bg-[#2A2A28] text-[#EDE8E3] hover:bg-[#323230] border border-[#383835]'}`;
+    btn.className = `px-4 py-1.5 rounded-full text-xs font-medium transition flex items-center gap-1.5 ${isFocused ? 'bg-[#f6f8fa] text-[#030708] font-bold shadow-sm' : 'bg-[#111820] text-[#f6f8fa] hover:bg-[#16202a] border border-white/[0.08]'}`;
     btn.innerHTML = `<span>${m.avatar}</span> <span>${m.name}</span>`;
     btn.onclick = () => selectFocusMember(m.id || m.name);
     container.appendChild(btn);
@@ -276,7 +305,7 @@ function renderOverviewMembers() {
 
   currentData.members.forEach(m => {
     const card = document.createElement("div");
-    card.className = "bg-[#222220] border border-[#383835] hover:border-[#E0561B] rounded-[24px] p-5 space-y-3 cursor-pointer transition hover:-translate-y-1 shadow-[0_4px_20px_rgba(0,0,0,0.2)]";
+    card.className = "bg-[#090e13] border border-white/[0.08] hover:border-[#f5b73d] rounded-[24px] p-5 space-y-3 cursor-pointer transition hover:-translate-y-1 shadow-[0_4px_20px_rgba(0,0,0,0.2)]";
     card.onclick = () => {
       selectFocusMember(m.id || m.name);
       switchTab("tabCharacters");
@@ -287,16 +316,16 @@ function renderOverviewMembers() {
         ${getCtiBadgeHtml(m.cti)}
       </div>
       <div>
-        <h5 class="text-base font-bold text-[#EDE8E3] flex items-center gap-1.5">${m.name}</h5>
-        <p class="text-xs text-[#A29E99]">${m.title}</p>
+        <h5 class="text-base font-bold text-[#f6f8fa] flex items-center gap-1.5">${m.name}</h5>
+        <p class="text-xs text-[#848c96]">${m.title}</p>
       </div>
-      <div class="space-y-1 pt-1 border-t border-[#383835] text-[11px] text-[#A29E99]">
-        <div class="flex justify-between"><span>발화량</span><strong class="text-[#EDE8E3]">${m.totalMsgs.toLocaleString()}건 (${m.msgRatio}%)</strong></div>
-        <div class="flex justify-between"><span>호흡</span><strong class="text-[#EDE8E3]">평균 ${m.avgLen}자</strong></div>
-        <div class="flex justify-between"><span>대화 개시</span><strong class="text-[#E0561B]">${m.starters}회</strong></div>
+      <div class="space-y-1 pt-1 border-t border-white/[0.08] text-[11px] text-[#848c96]">
+        <div class="flex justify-between"><span>발화량</span><strong class="text-[#f6f8fa]">${m.totalMsgs.toLocaleString()}건 (${m.msgRatio}%)</strong></div>
+        <div class="flex justify-between"><span>호흡</span><strong class="text-[#f6f8fa]">평균 ${m.avgLen}자</strong></div>
+        <div class="flex justify-between"><span>대화 개시</span><strong class="text-[#f5b73d]">${m.starters}회</strong></div>
       </div>
       <div class="pt-1">
-        <span class="inline-block text-[11px] px-2.5 py-1 rounded-full bg-[#2A2A28] text-[#EDE8E3] border border-[#383835] font-medium">${m.trophy}</span>
+        <span class="inline-block text-[11px] px-2.5 py-1 rounded-full bg-[#111820] text-[#f6f8fa] border border-white/[0.08] font-medium">${m.trophy}</span>
       </div>
     `;
     container.appendChild(card);
@@ -308,10 +337,10 @@ function renderStatGauge(label, value, colorClass) {
   return `
     <div class="space-y-1">
       <div class="flex justify-between text-[11px]">
-        <span class="text-[#A29E99] font-medium">${label}</span>
-        <span class="font-mono font-bold text-[#EDE8E3]">${value}<span class="text-[9px] text-[#A29E99]">/100</span></span>
+        <span class="text-[#848c96] font-medium">${label}</span>
+        <span class="font-mono font-bold text-[#f6f8fa]">${value}<span class="text-[9px] text-[#848c96]">/100</span></span>
       </div>
-      <div class="w-full bg-[#2A2A28] h-1.5 rounded-full overflow-hidden">
+      <div class="w-full bg-[#111820] h-1.5 rounded-full overflow-hidden">
         <div class="${colorClass} h-full rounded-full transition-all duration-500" style="width: ${Math.min(100, Math.max(5, value))}%"></div>
       </div>
     </div>
@@ -334,107 +363,107 @@ function renderCharacterCards() {
     const card = document.createElement("div");
     card.id = `charCard-${m.id}`;
     card.className = isMe 
-      ? "bg-[#222220] border-2 border-[#E0561B] rounded-[32px] p-6 space-y-5 shadow-[0_4px_24px_rgba(0,0,0,0.3)] relative overflow-hidden" 
-      : "bg-[#222220] border border-[#383835] rounded-[32px] p-6 space-y-5 shadow-[0_4px_20px_rgba(0,0,0,0.2)] relative overflow-hidden";
+      ? "bg-[#090e13] border-2 border-[#f5b73d] rounded-[32px] p-6 space-y-5 shadow-[0_4px_24px_rgba(0,0,0,0.3)] relative overflow-hidden" 
+      : "bg-[#090e13] border border-white/[0.08] rounded-[32px] p-6 space-y-5 shadow-[0_4px_20px_rgba(0,0,0,0.2)] relative overflow-hidden";
     
     const quotesHtml = (m.quotes || []).map(q => `
-      <li class="flex items-start gap-2 text-xs text-[#A29E99] italic">
-        <span class="text-[#E0561B]">"</span>
+      <li class="flex items-start gap-2 text-xs text-[#848c96] italic">
+        <span class="text-[#f5b73d]">"</span>
         <span>${q}</span>
-        <span class="text-[#E0561B]">"</span>
+        <span class="text-[#f5b73d]">"</span>
       </li>
     `).join("");
 
     const signaturesHtml = (m.signatures || []).map(s => `
-      <span class="px-2.5 py-1 rounded-full bg-[#2A2A28] border border-[#383835] text-[#EDE8E3] text-[11px] font-mono">#${s}</span>
+      <span class="px-2.5 py-1 rounded-full bg-[#111820] border border-white/[0.08] text-[#f6f8fa] text-[11px] font-mono">#${s}</span>
     `).join("");
 
     card.innerHTML = `
       <div class="flex items-start justify-between gap-4">
         <div class="flex items-center gap-3">
-          <div class="w-14 h-14 rounded-2xl bg-[#2A2A28] border border-[#383835] flex items-center justify-center text-3xl">
+          <div class="w-14 h-14 rounded-2xl bg-[#111820] border border-white/[0.08] flex items-center justify-center text-3xl">
             ${m.avatar}
           </div>
           <div>
             <div class="flex items-center gap-2">
-              <h4 class="text-xl font-black text-[#EDE8E3] flex items-center gap-2">
+              <h4 class="text-xl font-black text-[#f6f8fa] flex items-center gap-2">
                 <span>${m.name}</span>
-                ${isMe ? '<span class="text-xs px-2.5 py-0.5 rounded-full bg-[#E0561B] text-white font-black flex items-center gap-1 shadow-sm"><i class="fa-solid fa-crown text-[10px]"></i> 내 카드</span>' : ''}
+                ${isMe ? '<span class="text-xs px-2.5 py-0.5 rounded-full bg-[#f5b73d] text-white font-black flex items-center gap-1 shadow-sm"><i class="fa-solid fa-crown text-[10px]"></i> 내 카드</span>' : ''}
               </h4>
               ${getCtiBadgeHtml(m.cti)}
             </div>
-            <p class="text-xs text-[#E0561B] font-semibold mt-0.5">${m.title}</p>
+            <p class="text-xs text-[#f5b73d] font-semibold mt-0.5">${m.title}</p>
           </div>
         </div>
-        <span class="text-xs font-bold text-[#A29E99] bg-[#2A2A28] border border-[#383835] px-2.5 py-1 rounded-full">
+        <span class="text-xs font-bold text-[#848c96] bg-[#111820] border border-white/[0.08] px-2.5 py-1 rounded-full">
           점유율 ${m.msgRatio}%
         </span>
       </div>
 
       <!-- 레이더 차트 및 5대 지표 수치 진단 섹션 -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-center bg-[#181817] p-4 rounded-2xl border border-[#383835]">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-center bg-[#030708] p-4 rounded-2xl border border-white/[0.08]">
         <div class="h-52 relative flex items-center justify-center">
           <canvas id="radar-${idx}"></canvas>
         </div>
         <div class="space-y-2.5">
-          <div class="flex items-center justify-between pb-1 border-b border-[#2A2A28]">
-            <span class="text-xs font-bold text-[#EDE8E3] flex items-center gap-1.5">
-              <i class="fa-solid fa-sliders text-[#E0561B]"></i> 5대 성향 수치 진단
+          <div class="flex items-center justify-between pb-1 border-b border-[#111820]">
+            <span class="text-xs font-bold text-[#f6f8fa] flex items-center gap-1.5">
+              <i class="fa-solid fa-sliders text-[#f5b73d]"></i> 5대 성향 수치 진단
             </span>
-            <span class="text-[10px] text-[#A29E99]">전수 분석 통계</span>
+            <span class="text-[10px] text-[#848c96]">전수 분석 통계</span>
           </div>
-          ${renderStatGauge("⚡ 점화력 (화제 개시)", m.radar.initiative, "bg-[#E0561B]")}
-          ${renderStatGauge("📏 문장 길이 (호흡)", m.radar.length, "bg-[#5B8DF5]")}
+          ${renderStatGauge("⚡ 점화력 (화제 개시)", m.radar.initiative, "bg-[#f5b73d]")}
+          ${renderStatGauge("📏 문장 길이 (호흡)", m.radar.length, "bg-[#38bdf8]")}
           ${renderStatGauge("💬 감정 / 드립 (공감)", m.radar.emotion, "bg-emerald-400")}
           ${renderStatGauge("🎯 직진 / 도발 (단도직입)", m.radar.assertiveness, "bg-purple-400")}
-          ${renderStatGauge("🤣 유머 감각 (티키타카)", m.radar.humor, "bg-[#EAA43A]")}
+          ${renderStatGauge("🤣 유머 감각 (티키타카)", m.radar.humor, "bg-[#f5b73d]")}
         </div>
       </div>
 
       <!-- 기본 대화 집계 통계 -->
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
-        <div class="bg-[#181817] p-2.5 rounded-xl border border-[#2A2A28]">
-          <span class="text-[11px] text-[#A29E99] block mb-0.5">총 발화량</span>
-          <strong class="text-[#EDE8E3] font-mono">${m.totalMsgs.toLocaleString()}건</strong>
+        <div class="bg-[#030708] p-2.5 rounded-xl border border-[#111820]">
+          <span class="text-[11px] text-[#848c96] block mb-0.5">총 발화량</span>
+          <strong class="text-[#f6f8fa] font-mono">${m.totalMsgs.toLocaleString()}건</strong>
         </div>
-        <div class="bg-[#181817] p-2.5 rounded-xl border border-[#2A2A28]">
-          <span class="text-[11px] text-[#A29E99] block mb-0.5">평균 글자 수</span>
-          <strong class="text-[#EDE8E3] font-mono">${m.avgLen}자</strong>
+        <div class="bg-[#030708] p-2.5 rounded-xl border border-[#111820]">
+          <span class="text-[11px] text-[#848c96] block mb-0.5">평균 글자 수</span>
+          <strong class="text-[#f6f8fa] font-mono">${m.avgLen}자</strong>
         </div>
-        <div class="bg-[#181817] p-2.5 rounded-xl border border-[#2A2A28]">
-          <span class="text-[11px] text-[#A29E99] block mb-0.5">대화 점화 (선톡)</span>
-          <strong class="text-[#E0561B] font-mono">${m.starters}회</strong>
+        <div class="bg-[#030708] p-2.5 rounded-xl border border-[#111820]">
+          <span class="text-[11px] text-[#848c96] block mb-0.5">대화 점화 (선톡)</span>
+          <strong class="text-[#f5b73d] font-mono">${m.starters}회</strong>
         </div>
-        <div class="bg-[#181817] p-2.5 rounded-xl border border-[#2A2A28]">
-          <span class="text-[11px] text-[#A29E99] block mb-0.5">웃음/질문</span>
-          <strong class="text-[#EDE8E3] font-mono">${m.laughs.toLocaleString()} / ${m.questions}</strong>
+        <div class="bg-[#030708] p-2.5 rounded-xl border border-[#111820]">
+          <span class="text-[11px] text-[#848c96] block mb-0.5">웃음/질문</span>
+          <strong class="text-[#f6f8fa] font-mono">${m.laughs.toLocaleString()} / ${m.questions}</strong>
         </div>
       </div>
 
       <div class="space-y-1.5">
-        <p class="text-xs font-bold text-[#A29E99]">시그니처 키워드</p>
+        <p class="text-xs font-bold text-[#848c96]">시그니처 키워드</p>
         <div class="flex flex-wrap gap-1.5">${signaturesHtml}</div>
       </div>
 
-      <div class="space-y-2 bg-[#181817] p-3 rounded-2xl border border-[#383835]">
-        <p class="text-xs font-bold text-[#A29E99] flex items-center gap-1.5">
-          <i class="fa-solid fa-quote-left text-[#E0561B]"></i> 박제된 대표 대사
+      <div class="space-y-2 bg-[#030708] p-3 rounded-2xl border border-white/[0.08]">
+        <p class="text-xs font-bold text-[#848c96] flex items-center gap-1.5">
+          <i class="fa-solid fa-quote-left text-[#f5b73d]"></i> 박제된 대표 대사
         </p>
         <ul class="space-y-1.5">${quotesHtml}</ul>
       </div>
 
-      <div class="bg-[rgba(224,86,27,0.08)] border border-[rgba(224,86,27,0.3)] rounded-2xl p-3.5 space-y-1.5">
-        <div class="flex items-center gap-2 text-[#E0561B] text-xs font-bold">
+      <div class="bg-[rgba(245, 183, 61,0.08)] border border-[rgba(245, 183, 61,0.3)] rounded-2xl p-3.5 space-y-1.5">
+        <div class="flex items-center gap-2 text-[#f5b73d] text-xs font-bold">
           <i class="fa-solid fa-skull-crossbones"></i> 뼈 때리는 팩폭 피드백
         </div>
-        <p class="text-xs text-[#EDE8E3] leading-relaxed font-medium">${m.savage}</p>
-        <div class="pt-1 text-[11px] text-[#A29E99] flex items-center gap-1">
-          <i class="fa-solid fa-lightbulb text-[#EAA43A]"></i> 조언: ${m.advice}
+        <p class="text-xs text-[#f6f8fa] leading-relaxed font-medium">${m.savage}</p>
+        <div class="pt-1 text-[11px] text-[#848c96] flex items-center gap-1">
+          <i class="fa-solid fa-lightbulb text-[#f5b73d]"></i> 조언: ${m.advice}
         </div>
       </div>
 
       <div class="text-right">
-        <span class="text-xs font-extrabold px-3 py-1 rounded-full bg-[#2A2A28] border border-[#383835] text-[#EDE8E3]">
+        <span class="text-xs font-extrabold px-3 py-1 rounded-full bg-[#111820] border border-white/[0.08] text-[#f6f8fa]">
           ${m.trophy}
         </span>
       </div>
@@ -469,11 +498,11 @@ function renderAllRadarCharts() {
             Number(m.radar.assertiveness) || 0,
             Number(m.radar.humor) || 0
           ],
-          backgroundColor: "rgba(224, 86, 27, 0.28)",
-          borderColor: "#E0561B",
+          backgroundColor: "rgba(245, 183, 61, 0.28)",
+          borderColor: "#f5b73d",
           borderWidth: 2,
-          pointBackgroundColor: "#E0561B",
-          pointBorderColor: "#EDE8E3",
+          pointBackgroundColor: "#f5b73d",
+          pointBorderColor: "#f6f8fa",
           pointBorderWidth: 1.5,
           pointRadius: 3.5,
           pointHoverRadius: 6
@@ -499,7 +528,7 @@ function renderAllRadarCharts() {
             grid: { color: "rgba(255, 255, 255, 0.10)" },
             pointLabels: {
               font: { size: 11, family: "Pretendard Variable", weight: "600" },
-              color: "#A29E99"
+              color: "#848c96"
             },
             ticks: {
               display: false,
@@ -532,47 +561,47 @@ function renderChemistryTab() {
     const isMyPair = Boolean(targetName && p.pair.includes(targetName));
     const card = document.createElement("div");
     card.className = isMyPair 
-      ? "bg-[#222220] border-2 border-[#EAA43A] rounded-[24px] p-5 space-y-3 shadow-[0_4px_24px_rgba(0,0,0,0.3)] transition relative" 
-      : "bg-[#222220] border border-[#383835] rounded-[24px] p-5 space-y-3 hover:border-[#4A4A45] transition";
+      ? "bg-[#090e13] border-2 border-[#f5b73d] rounded-[24px] p-5 space-y-3 shadow-[0_4px_24px_rgba(0,0,0,0.3)] transition relative" 
+      : "bg-[#090e13] border border-white/[0.08] rounded-[24px] p-5 space-y-3 hover:border-[#4A4A45] transition";
 
-    let gradeColor = "text-[#EAA43A] bg-[rgba(234,164,58,0.15)] border-[rgba(234,164,58,0.4)]";
-    if (p.grade.includes("SS")) gradeColor = "text-[#E0561B] bg-[rgba(224,86,27,0.15)] border-[rgba(224,86,27,0.4)]";
+    let gradeColor = "text-[#f5b73d] bg-[rgba(234,164,58,0.15)] border-[rgba(234,164,58,0.4)]";
+    if (p.grade.includes("SS")) gradeColor = "text-[#f5b73d] bg-[rgba(245, 183, 61,0.15)] border-[rgba(245, 183, 61,0.4)]";
     else if (p.grade === "A") gradeColor = "text-emerald-400 bg-emerald-950/60 border-emerald-800/60";
-    else if (p.grade === "B+") gradeColor = "text-[#5B8DF5] bg-[rgba(91,141,245,0.15)] border-[rgba(91,141,245,0.4)]";
+    else if (p.grade === "B+") gradeColor = "text-[#38bdf8] bg-[rgba(56, 189, 248,0.15)] border-[rgba(56, 189, 248,0.4)]";
 
     card.innerHTML = `
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="flex items-center gap-3">
-          <span class="w-7 h-7 rounded-full bg-[#2A2A28] border border-[#383835] text-[#EDE8E3] flex items-center justify-center font-black text-sm">
+          <span class="w-7 h-7 rounded-full bg-[#111820] border border-white/[0.08] text-[#f6f8fa] flex items-center justify-center font-black text-sm">
             ${p.rank}
           </span>
           <div>
-            <h4 class="text-base font-black text-[#EDE8E3] flex items-center gap-2">
+            <h4 class="text-base font-black text-[#f6f8fa] flex items-center gap-2">
               <span>${p.pair[0]}</span>
               ${getCtiBadgeHtml(p.types[0])}
-              <span class="text-[#A29E99]">↔</span>
+              <span class="text-[#848c96]">↔</span>
               <span>${p.pair[1]}</span>
               ${getCtiBadgeHtml(p.types[1])}
             </h4>
           </div>
         </div>
         <div class="flex items-center gap-2">
-          ${isMyPair ? '<span class="px-2.5 py-1 rounded-full text-xs font-black bg-[#E0561B] text-white flex items-center gap-1 shadow-sm"><i class="fa-solid fa-star text-[10px]"></i> 나와의 케미</span>' : ''}
+          ${isMyPair ? '<span class="px-2.5 py-1 rounded-full text-xs font-black bg-[#f5b73d] text-white flex items-center gap-1 shadow-sm"><i class="fa-solid fa-star text-[10px]"></i> 나와의 케미</span>' : ''}
           <span class="px-2.5 py-1 rounded-full text-xs font-black border ${gradeColor}">${p.grade}급 (${p.score}점)</span>
-          <span class="text-xs font-bold text-[#EDE8E3] bg-[#2A2A28] border border-[#383835] px-3 py-1 rounded-full">${p.badge}</span>
+          <span class="text-xs font-bold text-[#f6f8fa] bg-[#111820] border border-white/[0.08] px-3 py-1 rounded-full">${p.badge}</span>
         </div>
       </div>
 
-      <div class="bg-[#181817] p-3 rounded-xl border border-[#383835] flex flex-wrap items-center justify-between gap-2 text-xs">
-        <p class="text-[#EDE8E3] font-medium">${p.summary}</p>
-        <div class="flex gap-3 text-[#A29E99] text-[11px] shrink-0 font-mono">
-          <span>답장: <strong class="text-[#E0561B]">${p.replies.toLocaleString()}건</strong></span>
-          <span>1:1 스트릭: <strong class="text-[#EDE8E3]">${p.streaks}회</strong></span>
-          <span>호출: <strong class="text-[#EDE8E3]">${p.mentions}회</strong></span>
+      <div class="bg-[#030708] p-3 rounded-xl border border-white/[0.08] flex flex-wrap items-center justify-between gap-2 text-xs">
+        <p class="text-[#f6f8fa] font-medium">${p.summary}</p>
+        <div class="flex gap-3 text-[#848c96] text-[11px] shrink-0 font-mono">
+          <span>답장: <strong class="text-[#f5b73d]">${p.replies.toLocaleString()}건</strong></span>
+          <span>1:1 스트릭: <strong class="text-[#f6f8fa]">${p.streaks}회</strong></span>
+          <span>호출: <strong class="text-[#f6f8fa]">${p.mentions}회</strong></span>
         </div>
       </div>
 
-      <p class="text-xs text-[#A29E99] leading-relaxed">${p.details || ''}</p>
+      <p class="text-xs text-[#848c96] leading-relaxed">${p.details || ''}</p>
     `;
     container.appendChild(card);
   });
@@ -620,15 +649,15 @@ function renderActivityTab() {
       const tag = document.createElement("span");
       let tagClass = "text-xs px-3 py-1.5 rounded-full transition cursor-default border ";
       if (idx === 0) {
-        tagClass += "text-sm font-black bg-[#E0561B] text-white border-transparent shadow-sm";
+        tagClass += "text-sm font-black bg-[#f5b73d] text-white border-transparent shadow-sm";
       } else if (idx < 3) {
-        tagClass += "font-bold bg-[rgba(234,164,58,0.18)] text-[#EAA43A] border-[rgba(234,164,58,0.4)]";
+        tagClass += "font-bold bg-[rgba(234,164,58,0.18)] text-[#f5b73d] border-[rgba(234,164,58,0.4)]";
       } else if (idx < 8) {
-        tagClass += "font-semibold bg-[rgba(91,141,245,0.15)] text-[#5B8DF5] border-[rgba(91,141,245,0.35)]";
+        tagClass += "font-semibold bg-[rgba(56, 189, 248,0.15)] text-[#38bdf8] border-[rgba(56, 189, 248,0.35)]";
       } else if (idx < 15) {
-        tagClass += "font-medium bg-[#2A2A28] text-[#EDE8E3] border-[#383835]";
+        tagClass += "font-medium bg-[#111820] text-[#f6f8fa] border-white/[0.08]";
       } else {
-        tagClass += "bg-[#181817] text-[#A29E99] border-[#2A2A28]";
+        tagClass += "bg-[#030708] text-[#848c96] border-[#111820]";
       }
       tag.className = tagClass;
       tag.innerHTML = `<span>#${kw.word}</span> <span class="opacity-75 text-[10px] font-mono">(${kw.count}회)</span>`;
@@ -641,12 +670,12 @@ function renderActivityTab() {
     catchContainer.innerHTML = "";
     currentData.members.forEach(m => {
       const card = document.createElement("div");
-      card.className = "bg-[#222220] border border-[#383835] rounded-[24px] p-4 space-y-3 shadow-[0_4px_20px_rgba(0,0,0,0.2)] hover:border-[#4A4A45] transition";
+      card.className = "bg-[#090e13] border border-white/[0.08] rounded-[24px] p-4 space-y-3 shadow-[0_4px_20px_rgba(0,0,0,0.2)] hover:border-[#4A4A45] transition";
       
       const wordsList = (m.topWords || []).map((w, i) => `
-        <div class="flex items-center justify-between text-xs py-1 border-b border-[#2A2A28] last:border-none">
-          <span class="text-[#EDE8E3] font-medium"><strong class="text-[#E0561B] mr-1.5">${i + 1}.</strong> #${w.word}</span>
-          <span class="text-[11px] font-mono text-[#A29E99] bg-[#181817] border border-[#2A2A28] px-2 py-0.5 rounded-full">${w.count}회</span>
+        <div class="flex items-center justify-between text-xs py-1 border-b border-[#111820] last:border-none">
+          <span class="text-[#f6f8fa] font-medium"><strong class="text-[#f5b73d] mr-1.5">${i + 1}.</strong> #${w.word}</span>
+          <span class="text-[11px] font-mono text-[#848c96] bg-[#030708] border border-[#111820] px-2 py-0.5 rounded-full">${w.count}회</span>
         </div>
       `).join("");
 
@@ -655,22 +684,22 @@ function renderActivityTab() {
           <div class="flex items-center gap-2">
             <span class="text-2xl">${m.avatar}</span>
             <div>
-              <h5 class="text-sm font-bold text-[#EDE8E3]">${m.name}</h5>
+              <h5 class="text-sm font-bold text-[#f6f8fa]">${m.name}</h5>
               <div class="mt-0.5">${getCtiBadgeHtml(m.cti)}</div>
             </div>
           </div>
-          <span class="text-[11px] px-2.5 py-1 rounded-full bg-[#2A2A28] text-[#EDE8E3] border border-[#383835] font-medium">
+          <span class="text-[11px] px-2.5 py-1 rounded-full bg-[#111820] text-[#f6f8fa] border border-white/[0.08] font-medium">
             ${m.timePersona || "활동가"}
           </span>
         </div>
         <div class="pt-1 space-y-1">
-          <p class="text-[11px] text-[#A29E99] font-bold uppercase tracking-wider">자주 쓰는 말버릇 TOP 5</p>
-          <div class="bg-[#181817] rounded-xl p-2.5 space-y-0.5 border border-[#2A2A28]">
-            ${wordsList || "<p class='text-xs text-[#A29E99] py-1'>단어 분석 중</p>"}
+          <p class="text-[11px] text-[#848c96] font-bold uppercase tracking-wider">자주 쓰는 말버릇 TOP 5</p>
+          <div class="bg-[#030708] rounded-xl p-2.5 space-y-0.5 border border-[#111820]">
+            ${wordsList || "<p class='text-xs text-[#848c96] py-1'>단어 분석 중</p>"}
           </div>
         </div>
         ${m.quotes && m.quotes[0] ? `
-          <div class="pt-1 text-[11px] text-[#A29E99] italic bg-[#181817] p-2 rounded-xl border border-[#2A2A28]">
+          <div class="pt-1 text-[11px] text-[#848c96] italic bg-[#030708] p-2 rounded-xl border border-[#111820]">
             "${m.quotes[0]}"
           </div>
         ` : ""}
@@ -693,8 +722,8 @@ function renderActivityCharts() {
     const ctx = hourlyCanvas.getContext("2d");
     
     const grad = ctx.createLinearGradient(0, 0, 0, 220);
-    grad.addColorStop(0, "rgba(224,86,27,0.35)");
-    grad.addColorStop(1, "rgba(224,86,27,0.0)");
+    grad.addColorStop(0, "rgba(245, 183, 61,0.35)");
+    grad.addColorStop(1, "rgba(245, 183, 61,0.0)");
 
     const labels = Array.from({ length: 24 }, (_, i) => `${i}시`);
     const data = act.hourly || Array(24).fill(0);
@@ -706,14 +735,14 @@ function renderActivityCharts() {
         datasets: [{
           label: "대화량",
           data: data,
-          borderColor: "#E0561B",
+          borderColor: "#f5b73d",
           borderWidth: 2.5,
           backgroundColor: grad,
           fill: true,
           tension: 0.35,
           pointRadius: 2.5,
           pointHoverRadius: 6,
-          pointBackgroundColor: "#E0561B"
+          pointBackgroundColor: "#f5b73d"
         }]
       },
       options: {
@@ -729,12 +758,12 @@ function renderActivityCharts() {
         },
         scales: {
           x: {
-            grid: { color: "rgba(255,255,255,0.05)" },
-            ticks: { color: "#A29E99", font: { size: 10, family: "Pretendard Variable" } }
+            grid: { color: "rgba(255, 255, 255, 0.05)" },
+            ticks: { color: "#848c96", font: { size: 10, family: "Pretendard Variable" } }
           },
           y: {
-            grid: { color: "rgba(255,255,255,0.05)" },
-            ticks: { color: "#A29E99", font: { size: 10, family: "Pretendard Variable" } }
+            grid: { color: "rgba(255, 255, 255, 0.05)" },
+            ticks: { color: "#848c96", font: { size: 10, family: "Pretendard Variable" } }
           }
         }
       }
@@ -750,7 +779,7 @@ function renderActivityCharts() {
     const labels = ["월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일"];
     const data = days.map(d => act.weekday?.[d] || 0);
     const maxVal = Math.max(...data);
-    const bgColors = data.map(v => v === maxVal ? "#E0561B" : "rgba(234,164,58,0.6)");
+    const bgColors = data.map(v => v === maxVal ? "#f5b73d" : "rgba(245, 183, 61, 0.28)");
 
     activityCharts.weekday = new Chart(ctx, {
       type: "bar",
@@ -778,11 +807,11 @@ function renderActivityCharts() {
         scales: {
           x: {
             grid: { display: false },
-            ticks: { color: "#A29E99", font: { size: 10, family: "Pretendard Variable" } }
+            ticks: { color: "#848c96", font: { size: 10, family: "Pretendard Variable" } }
           },
           y: {
-            grid: { color: "rgba(255,255,255,0.05)" },
-            ticks: { color: "#A29E99", font: { size: 10, family: "Pretendard Variable" } }
+            grid: { color: "rgba(255, 255, 255, 0.05)" },
+            ticks: { color: "#848c96", font: { size: 10, family: "Pretendard Variable" } }
           }
         }
       }
@@ -813,7 +842,7 @@ function runChemistrySimulation() {
   if (!selA || !selB || !resultBox) return;
 
   if (selA.value === selB.value) {
-    resultBox.innerHTML = `<p class="text-xs text-[#E0561B]">자신과의 궁합입니다! 완벽한 자기이해의 경지입니다.</p>`;
+    resultBox.innerHTML = `<p class="text-xs text-[#f5b73d]">자신과의 궁합입니다! 완벽한 자기이해의 경지입니다.</p>`;
     return;
   }
 
@@ -824,15 +853,15 @@ function runChemistrySimulation() {
   const chem = window.CTI_SYSTEM.getChemistry(mA.cti, mB.cti, mA.name, mB.name);
 
   resultBox.innerHTML = `
-    <div class="flex items-center justify-between border-b border-[#2A2A28] pb-2">
+    <div class="flex items-center justify-between border-b border-[#111820] pb-2">
       <div class="flex items-center gap-2">
-        <span class="text-base font-bold text-[#EDE8E3]">${mA.name} & ${mB.name}</span>
-        <span class="text-xs text-[#E0561B] font-bold">${chem.badge}</span>
+        <span class="text-base font-bold text-[#f6f8fa]">${mA.name} & ${mB.name}</span>
+        <span class="text-xs text-[#f5b73d] font-bold">${chem.badge}</span>
       </div>
-      <span class="text-sm font-black text-[#E0561B]">${chem.grade}급 (${chem.score}점)</span>
+      <span class="text-sm font-black text-[#f5b73d]">${chem.grade}급 (${chem.score}점)</span>
     </div>
-    <p class="text-xs text-[#EDE8E3] font-semibold">${chem.summary}</p>
-    <p class="text-xs text-[#A29E99] leading-relaxed">${chem.details}</p>
+    <p class="text-xs text-[#f6f8fa] font-semibold">${chem.summary}</p>
+    <p class="text-xs text-[#848c96] leading-relaxed">${chem.details}</p>
   `;
 }
 
@@ -846,22 +875,22 @@ function renderReportEncyclopedia() {
   Object.keys(allTypes).forEach(code => {
     const item = allTypes[code];
     const card = document.createElement("div");
-    card.className = "bg-[#222220] border border-[#383835] hover:border-[#E0561B] rounded-[32px] p-5 space-y-3 cursor-pointer transition hover:-translate-y-1 shadow-[0_4px_20px_rgba(0,0,0,0.2)]";
+    card.className = "bg-[#090e13] border border-white/[0.08] hover:border-[#f5b73d] rounded-[32px] p-5 space-y-3 cursor-pointer transition hover:-translate-y-1 shadow-[0_4px_20px_rgba(0,0,0,0.2)]";
     card.onclick = () => openTypeDetailModal(code);
 
     card.innerHTML = `
       <div class="flex items-center justify-between">
         ${getCtiBadgeHtml(item.code)}
-        <span class="text-[10px] text-[#A29E99]">클릭하여 상세</span>
+        <span class="text-[10px] text-[#848c96]">클릭하여 상세</span>
       </div>
       <div>
-        <h5 class="text-sm font-bold text-[#EDE8E3] truncate">${item.title}</h5>
-        <p class="text-xs text-[#E0561B] font-medium mt-0.5 line-clamp-1">${item.sub}</p>
+        <h5 class="text-sm font-bold text-[#f6f8fa] truncate">${item.title}</h5>
+        <p class="text-xs text-[#f5b73d] font-medium mt-0.5 line-clamp-1">${item.sub}</p>
       </div>
-      <p class="text-xs text-[#A29E99] line-clamp-3 leading-relaxed">${item.desc}</p>
-      <div class="pt-2 border-t border-[#383835] flex items-center justify-between text-[11px]">
-        <span class="text-[#E0561B] font-medium">💖 ${item.bestMatch}</span>
-        <span class="text-[#A29E99] font-medium">⚡ ${item.worstMatch}</span>
+      <p class="text-xs text-[#848c96] line-clamp-3 leading-relaxed">${item.desc}</p>
+      <div class="pt-2 border-t border-white/[0.08] flex items-center justify-between text-[11px]">
+        <span class="text-[#f5b73d] font-medium">💖 ${item.bestMatch}</span>
+        <span class="text-[#848c96] font-medium">⚡ ${item.worstMatch}</span>
       </div>
     `;
     container.appendChild(card);
@@ -878,16 +907,16 @@ function renderLandingEncyclopedia() {
   Object.keys(allTypes).forEach(code => {
     const item = allTypes[code];
     const card = document.createElement("div");
-    card.className = "bg-[#222220] border border-[#383835] hover:border-[#E0561B] rounded-[32px] p-5 space-y-2 cursor-pointer transition hover:-translate-y-1 shadow-[0_4px_20px_rgba(0,0,0,0.2)]";
+    card.className = "bg-[#090e13] border border-white/[0.08] hover:border-[#f5b73d] rounded-[32px] p-5 space-y-2 cursor-pointer transition hover:-translate-y-1 shadow-[0_4px_20px_rgba(0,0,0,0.2)]";
     card.onclick = () => openTypeDetailModal(code);
 
     card.innerHTML = `
       <div class="flex items-center justify-between">
         ${getCtiBadgeHtml(item.code)}
-        <span class="text-[10px] text-[#A29E99]">상세보기</span>
+        <span class="text-[10px] text-[#848c96]">상세보기</span>
       </div>
-      <h5 class="text-sm font-bold text-[#EDE8E3] truncate">${item.title}</h5>
-      <p class="text-xs text-[#A29E99] line-clamp-2">${item.desc}</p>
+      <h5 class="text-sm font-bold text-[#f6f8fa] truncate">${item.title}</h5>
+      <p class="text-xs text-[#848c96] line-clamp-2">${item.desc}</p>
     `;
     container.appendChild(card);
   });
@@ -902,30 +931,30 @@ function openTypeDetailModal(code) {
 
   content.innerHTML = `
     <div class="space-y-4">
-      <div class="flex items-center justify-between border-b border-[#383835] pb-3">
+      <div class="flex items-center justify-between border-b border-white/[0.08] pb-3">
         <div>
           ${getCtiBadgeHtml(item.code, "px-3 py-1 text-sm font-black")}
-          <h3 class="text-xl font-black text-[#EDE8E3] mt-2">${item.title}</h3>
-          <p class="text-xs text-[#E0561B] font-medium">${item.sub}</p>
+          <h3 class="text-xl font-black text-[#f6f8fa] mt-2">${item.title}</h3>
+          <p class="text-xs text-[#f5b73d] font-medium">${item.sub}</p>
         </div>
       </div>
-      <p class="text-xs text-[#A29E99] leading-relaxed">${item.desc}</p>
-      <div class="text-xs text-[#EDE8E3] font-mono bg-[#181817] p-2.5 rounded-xl border border-[#383835]">
+      <p class="text-xs text-[#848c96] leading-relaxed">${item.desc}</p>
+      <div class="text-xs text-[#f6f8fa] font-mono bg-[#030708] p-2.5 rounded-xl border border-white/[0.08]">
         ${item.tag}
       </div>
-      <div class="bg-[rgba(224,86,27,0.1)] border border-[rgba(224,86,27,0.3)] rounded-2xl p-3 space-y-1">
-        <p class="text-xs text-[#E0561B] font-bold">🔥 뼈 때리는 팩폭</p>
-        <p class="text-xs text-[#EDE8E3] leading-relaxed">${item.savage}</p>
-        <p class="text-[11px] text-[#A29E99] pt-1">💡 성찰 조언: ${item.advice}</p>
+      <div class="bg-[rgba(245, 183, 61,0.1)] border border-[rgba(245, 183, 61,0.3)] rounded-2xl p-3 space-y-1">
+        <p class="text-xs text-[#f5b73d] font-bold">🔥 뼈 때리는 팩폭</p>
+        <p class="text-xs text-[#f6f8fa] leading-relaxed">${item.savage}</p>
+        <p class="text-[11px] text-[#848c96] pt-1">💡 성찰 조언: ${item.advice}</p>
       </div>
       <div class="grid grid-cols-2 gap-3 pt-2 text-xs">
-        <div class="p-3 rounded-xl bg-[#181817] border border-[#383835]">
-          <span class="text-[#A29E99]">💖 찰떡궁합</span>
-          <p class="text-base font-bold text-[#E0561B] mt-1">${item.bestMatch}</p>
+        <div class="p-3 rounded-xl bg-[#030708] border border-white/[0.08]">
+          <span class="text-[#848c96]">💖 찰떡궁합</span>
+          <p class="text-base font-bold text-[#f5b73d] mt-1">${item.bestMatch}</p>
         </div>
-        <div class="p-3 rounded-xl bg-[#181817] border border-[#383835]">
-          <span class="text-[#A29E99]">⚡ 파국주의</span>
-          <p class="text-base font-bold text-[#A29E99] mt-1">${item.worstMatch}</p>
+        <div class="p-3 rounded-xl bg-[#030708] border border-white/[0.08]">
+          <span class="text-[#848c96]">⚡ 파국주의</span>
+          <p class="text-base font-bold text-[#848c96] mt-1">${item.worstMatch}</p>
         </div>
       </div>
     </div>
@@ -978,7 +1007,7 @@ function captureCurrentTab() {
   if (!reportView) return;
 
   html2canvas(reportView, {
-    backgroundColor: "#181817",
+    backgroundColor: "#030708",
     scale: 2
   }).then(canvas => {
     const link = document.createElement("a");
@@ -1065,13 +1094,13 @@ function setShareRatio(ratio) {
   if (ratio === "story") {
     canvas.style.width = "380px";
     canvas.style.minHeight = "600px";
-    btnStory.className = "px-4 py-2 rounded-[20px] text-xs font-medium bg-[#E0561B] text-white flex items-center gap-1.5 shadow-sm";
-    btnSquare.className = "px-4 py-2 rounded-[20px] text-xs font-medium border border-[#383835] bg-[#2A2A28] text-[#EDE8E3] flex items-center gap-1.5 hover:bg-[#323230]";
+    btnStory.className = "px-4 py-2 rounded-[20px] text-xs font-medium bg-[#f5b73d] text-white flex items-center gap-1.5 shadow-sm";
+    btnSquare.className = "px-4 py-2 rounded-[20px] text-xs font-medium border border-white/[0.08] bg-[#111820] text-[#f6f8fa] flex items-center gap-1.5 hover:bg-[#16202a]";
   } else {
     canvas.style.width = "420px";
     canvas.style.minHeight = "460px";
-    btnSquare.className = "px-4 py-2 rounded-[20px] text-xs font-medium bg-[#E0561B] text-white flex items-center gap-1.5 shadow-sm";
-    btnStory.className = "px-4 py-2 rounded-[20px] text-xs font-medium border border-[#383835] bg-[#2A2A28] text-[#EDE8E3] flex items-center gap-1.5 hover:bg-[#323230]";
+    btnSquare.className = "px-4 py-2 rounded-[20px] text-xs font-medium bg-[#f5b73d] text-white flex items-center gap-1.5 shadow-sm";
+    btnStory.className = "px-4 py-2 rounded-[20px] text-xs font-medium border border-white/[0.08] bg-[#111820] text-[#f6f8fa] flex items-center gap-1.5 hover:bg-[#16202a]";
   }
 }
 
