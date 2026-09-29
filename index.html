@@ -72,14 +72,27 @@
         <span class="font-medium">100% 브라우저 로컬 분석 • 서버 전송 0건</span>
       </div>
 
-      <!-- 우측 액션 버튼 -->
-      <div class="flex items-center gap-2">
+      <!-- 우측 액션 버튼 (업로드 전 / 분석 완료 후) -->
+      <div class="flex items-center gap-2 flex-wrap">
         <button id="navUploadBtn" onclick="triggerFileInput()" class="px-4 py-2 bg-[#f6f8fa] hover:bg-[#e2e8f0] text-[#030708] text-xs font-bold rounded-[20px] transition flex items-center gap-1.5 shadow-sm">
           <i class="fa-solid fa-file-arrow-up"></i> 카톡 분석하기
         </button>
-        <button id="navBackBtn" onclick="handleNavBackClick()" class="px-4 py-2 bg-[#111820] hover:bg-[#16202a] text-[#f6f8fa] text-xs font-semibold rounded-[20px] transition hidden flex items-center gap-1.5 border border-white/[0.08]">
-          <i class="fa-solid fa-arrow-left"></i> 처음으로
-        </button>
+
+        <!-- 분석 완료 시 헤더 툴바에 노출되는 통합 기능 그룹 -->
+        <div id="navReportActions" class="hidden items-center gap-1.5 sm:gap-2 flex-wrap">
+          <button onclick="toggleAnonymize()" id="btnAnonymize" class="px-3 py-1.5 bg-[#111820] hover:bg-[#16202a] text-[#f6f8fa] text-xs font-semibold rounded-[20px] border border-white/[0.08] transition flex items-center gap-1.5">
+            <i class="fa-solid fa-user-secret"></i> <span id="anonymizeText">가명 모드</span>
+          </button>
+          <button onclick="openShareModal()" class="px-3 py-1.5 bg-[#f5b73d] hover:opacity-90 text-[#030708] text-xs font-black rounded-[20px] transition flex items-center gap-1.5 shadow-sm">
+            <i class="fa-solid fa-sparkles"></i> <span>포토카드 공유</span>
+          </button>
+          <button onclick="showLandingView()" class="px-3 py-1.5 bg-[#111820] hover:bg-[#16202a] text-[#f6f8fa] text-xs font-semibold rounded-[20px] border border-white/[0.08] transition flex items-center gap-1.5">
+            <i class="fa-solid fa-arrow-rotate-left"></i> 새 파일
+          </button>
+          <button id="navBackBtn" onclick="handleNavBackClick()" class="px-3.5 py-1.5 bg-[#111820] hover:bg-[#16202a] text-[#f6f8fa] text-xs font-semibold rounded-[20px] transition flex items-center gap-1.5 border border-white/[0.08]">
+            <i class="fa-solid fa-house text-[#f5b73d]"></i> 처음으로
+          </button>
+        </div>
       </div>
     </div>
   </header>
@@ -265,20 +278,7 @@
 
     <!-- [A] 리포트 홈 대시보드 (분석 완료 시 처음 보이는 화면: 종합 성적표 선공개 + 하단 4개 메뉴 버튼) -->
     <div id="reportHomeDashboard" class="space-y-8 py-2">
-      <!-- 1. 상단 미니멀 액션바 (가명 모드, 포토카드 공유, 새 파일) -->
-      <div class="flex items-center justify-end gap-2 pb-3 border-b border-white/[0.08] flex-wrap">
-        <button onclick="toggleAnonymize()" id="btnAnonymize" class="px-3 py-1.5 bg-[#111820] hover:bg-[#16202a] text-[#f6f8fa] text-xs font-semibold rounded-[20px] border border-white/[0.08] transition flex items-center gap-1.5">
-          <i class="fa-solid fa-user-secret"></i> <span id="anonymizeText">가명 모드</span>
-        </button>
-        <button onclick="openShareModal()" class="px-3.5 py-1.5 bg-[#f5b73d] hover:opacity-90 text-[#030708] text-xs font-black rounded-[20px] transition flex items-center gap-1.5 shadow-sm">
-          <i class="fa-solid fa-sparkles"></i> <span>포토카드 공유</span>
-        </button>
-        <button onclick="showLandingView()" class="px-3 py-1.5 bg-[#111820] hover:bg-[#16202a] text-[#f6f8fa] text-xs font-semibold rounded-[20px] border border-white/[0.08] transition flex items-center gap-1.5">
-          <i class="fa-solid fa-arrow-rotate-left"></i> 새 파일
-        </button>
-      </div>
-
-      <!-- 2. 종합 우정 성적표 (분석 완료 시 최상단 기본 노출) -->
+      <!-- 1. 종합 우정 성적표 (분석 완료 시 최상단 기본 노출) -->
       <section id="dashboardOverviewSection" class="space-y-6">
         <!-- 톡방 총평 배너 -->
         <div class="bg-[#090e13] border border-white/[0.08] rounded-[32px] p-5 md:p-6 space-y-2.5 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">

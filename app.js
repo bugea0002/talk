@@ -164,7 +164,9 @@ function handleNavBackClick() {
 function showLandingView() {
   document.getElementById("landingView").classList.remove("hidden");
   document.getElementById("reportView").classList.add("hidden");
-  document.getElementById("navBackBtn").classList.add("hidden");
+  const navReportActions = document.getElementById("navReportActions");
+  if (navReportActions) navReportActions.classList.add("hidden");
+  navReportActions.classList.remove("flex");
   document.getElementById("navUploadBtn").classList.remove("hidden");
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -172,10 +174,14 @@ function showLandingView() {
 function showReportView() {
   document.getElementById("landingView").classList.add("hidden");
   document.getElementById("reportView").classList.remove("hidden");
-  document.getElementById("navBackBtn").classList.remove("hidden");
+  const navReportActions = document.getElementById("navReportActions");
+  if (navReportActions) {
+    navReportActions.classList.remove("hidden");
+    navReportActions.classList.add("flex");
+  }
   document.getElementById("navUploadBtn").classList.add("hidden");
   
-  // 처음 분석 후 들어왔을 때는 2x2 메뉴 대시보드만 표시
+  // 처음 분석 후 들어왔을 때는 종합 성적표 선공개 대시보드 표시
   returnToReportHome();
 }
 
