@@ -224,6 +224,36 @@ function openReportDetail(tabId) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
+// 심층 분석 리포트 더보기 / 접기 토글 상태 및 함수
+let isDeepDiveExpanded = false;
+
+function toggleDeepDiveReports(forceState) {
+  const container = document.getElementById("deepDiveCardsContainer");
+  const overlay = document.getElementById("deepDiveFadeOverlay");
+  const textEl = document.getElementById("deepDiveToggleText");
+  const iconEl = document.getElementById("deepDiveToggleIcon");
+
+  if (!container) return;
+
+  if (typeof forceState === "boolean") {
+    isDeepDiveExpanded = forceState;
+  } else {
+    isDeepDiveExpanded = !isDeepDiveExpanded;
+  }
+
+  if (isDeepDiveExpanded) {
+    container.style.maxHeight = "1200px";
+    if (overlay) overlay.style.opacity = "0";
+    if (textEl) textEl.innerText = "심층 분석 리포트 접기";
+    if (iconEl) iconEl.className = "fa-solid fa-chevron-up text-[#f5b73d] group-hover:-translate-y-0.5 transition-transform";
+  } else {
+    container.style.maxHeight = "144px"; // 9rem (max-h-36)
+    if (overlay) overlay.style.opacity = "1";
+    if (textEl) textEl.innerText = "심층 분석 리포트 더보기";
+    if (iconEl) iconEl.className = "fa-solid fa-chevron-down text-[#f5b73d] group-hover:translate-y-0.5 transition-transform";
+  }
+}
+
 // 상세 페이지에서 '전체 메뉴로 돌아가기'를 눌렀을 때
 function returnToReportHome() {
   const homeDashboard = document.getElementById("reportHomeDashboard");

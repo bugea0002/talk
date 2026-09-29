@@ -341,51 +341,67 @@
         </div>
       </section>
 
-      <!-- 3. 상세 리포트 바로가기 안내 문구 -->
-      <div class="text-center space-y-1 pt-6 border-t border-white/[0.08]">
-        <p class="text-xs font-bold text-[#f5b73d] uppercase tracking-widest">DEEP DIVE REPORT</p>
-        <h3 class="text-lg sm:text-xl font-black text-[#f6f8fa]">더 알고 싶은 심층 분석 리포트를 선택하세요</h3>
-        <p class="text-xs text-[#848c96]">카드를 누르면 친구별 팩폭 카드, 맞춤 리포트, 1:1 케미 등 상세 화면으로 이동합니다.</p>
-      </div>
+      <!-- 3. 상세 리포트 바로가기 (더보기 형태의 아코디언 / 블러 오버레이) -->
+      <section id="deepDiveWrapper" class="pt-6 border-t border-white/[0.08] relative">
+        <div class="text-center space-y-1 mb-6">
+          <p class="text-xs font-bold text-[#f5b73d] uppercase tracking-widest">DEEP DIVE REPORT</p>
+          <h3 class="text-lg sm:text-xl font-black text-[#f6f8fa]">더 알고 싶은 심층 분석 리포트</h3>
+          <p class="text-xs text-[#848c96]">친구별 팩폭 카드, 인물 맞춤 리포트, 1:1 케미 등 상세 리포트를 확인해보세요.</p>
+        </div>
 
-      <!-- 4. 라운드 스퀘어 네비게이션 버튼 4개 (1줄 4개 / 모바일 그리드) -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-6xl mx-auto">
-        <!-- 1. 인물별 CTI 팩폭 카드 -->
-        <button onclick="openReportDetail('tabCharacters')" class="menu-nav-btn group text-left p-6 sm:p-7 rounded-[32px] border transition-all duration-300 bg-[#090e13] border-white/[0.08] hover:border-[#f5b73d] hover:bg-[#111820] hover:-translate-y-1 shadow-[0_4px_24px_rgba(0,0,0,0.3)]">
-          <div class="w-12 h-12 rounded-2xl bg-[#111820] text-[#f5b73d] group-hover:bg-[#f5b73d] group-hover:text-[#030708] flex items-center justify-center text-xl mb-4 border border-white/[0.08] transition-all">
-            <i class="fa-solid fa-address-card"></i>
-          </div>
-          <h4 class="text-base sm:text-lg font-black text-[#f6f8fa] tracking-tight group-hover:text-[#f5b73d] transition-colors">인물별 CTI 팩폭 카드</h4>
-          <p class="text-xs text-[#848c96] mt-1.5 leading-relaxed">개인별 4대 지표 레이더 차트, 시그니처 대사, 뼈 때리는 팩폭 신상명세서</p>
-        </button>
+        <!-- 카드 컨테이너: 기본적으로 max-h 제약과 페이드아웃 마스크 적용 -->
+        <div id="deepDiveCardsContainer" class="relative max-h-36 overflow-hidden transition-all duration-500 ease-in-out">
+          <!-- 4개 라운드 스퀘어 네비게이션 버튼 (1줄 4개 / 모바일 그리드) -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-6xl mx-auto pb-4">
+            <!-- 1. 인물별 CTI 팩폭 카드 -->
+            <button onclick="openReportDetail('tabCharacters')" class="menu-nav-btn group text-left p-6 sm:p-7 rounded-[32px] border transition-all duration-300 bg-[#090e13] border-white/[0.08] hover:border-[#f5b73d] hover:bg-[#111820] hover:-translate-y-1 shadow-[0_4px_24px_rgba(0,0,0,0.3)]">
+              <div class="w-12 h-12 rounded-2xl bg-[#111820] text-[#f5b73d] group-hover:bg-[#f5b73d] group-hover:text-[#030708] flex items-center justify-center text-xl mb-4 border border-white/[0.08] transition-all">
+                <i class="fa-solid fa-address-card"></i>
+              </div>
+              <h4 class="text-base sm:text-lg font-black text-[#f6f8fa] tracking-tight group-hover:text-[#f5b73d] transition-colors">인물별 CTI 팩폭 카드</h4>
+              <p class="text-xs text-[#848c96] mt-1.5 leading-relaxed">개인별 4대 지표 레이더 차트, 시그니처 대사, 뼈 때리는 팩폭 신상명세서</p>
+            </button>
 
-        <!-- 2. 인물별 맞춤 리포트 -->
-        <button onclick="openReportDetail('tabPersonalFocus')" class="menu-nav-btn group text-left p-6 sm:p-7 rounded-[32px] border transition-all duration-300 bg-[#090e13] border-white/[0.08] hover:border-amber-400 hover:bg-[#111820] hover:-translate-y-1 shadow-[0_4px_24px_rgba(0,0,0,0.3)]">
-          <div class="w-12 h-12 rounded-2xl bg-[#111820] text-amber-400 group-hover:bg-amber-400 group-hover:text-[#030708] flex items-center justify-center text-xl mb-4 border border-white/[0.08] transition-all">
-            <i class="fa-solid fa-crosshairs"></i>
-          </div>
-          <h4 class="text-base sm:text-lg font-black text-[#f6f8fa] tracking-tight group-hover:text-amber-400 transition-colors">인물별 맞춤 리포트</h4>
-          <p class="text-xs text-[#848c96] mt-1.5 leading-relaxed">특정 친구나 나를 선택해 최고 영혼의 단짝, 피크 타임, 시그니처 말버릇 집중 분석</p>
-        </button>
+            <!-- 2. 인물별 맞춤 리포트 -->
+            <button onclick="openReportDetail('tabPersonalFocus')" class="menu-nav-btn group text-left p-6 sm:p-7 rounded-[32px] border transition-all duration-300 bg-[#090e13] border-white/[0.08] hover:border-amber-400 hover:bg-[#111820] hover:-translate-y-1 shadow-[0_4px_24px_rgba(0,0,0,0.3)]">
+              <div class="w-12 h-12 rounded-2xl bg-[#111820] text-amber-400 group-hover:bg-amber-400 group-hover:text-[#030708] flex items-center justify-center text-xl mb-4 border border-white/[0.08] transition-all">
+                <i class="fa-solid fa-crosshairs"></i>
+              </div>
+              <h4 class="text-base sm:text-lg font-black text-[#f6f8fa] tracking-tight group-hover:text-amber-400 transition-colors">인물별 맞춤 리포트</h4>
+              <p class="text-xs text-[#848c96] mt-1.5 leading-relaxed">특정 친구나 나를 선택해 최고 영혼의 단짝, 피크 타임, 시그니처 말버릇 집중 분석</p>
+            </button>
 
-        <!-- 3. 1:1 케미 & 궁합 랭킹 -->
-        <button onclick="openReportDetail('tabChemistry')" class="menu-nav-btn group text-left p-6 sm:p-7 rounded-[32px] border transition-all duration-300 bg-[#090e13] border-white/[0.08] hover:border-[#38bdf8] hover:bg-[#111820] hover:-translate-y-1 shadow-[0_4px_24px_rgba(0,0,0,0.3)]">
-          <div class="w-12 h-12 rounded-2xl bg-[#111820] text-[#38bdf8] group-hover:bg-[#38bdf8] group-hover:text-[#030708] flex items-center justify-center text-xl mb-4 border border-white/[0.08] transition-all">
-            <i class="fa-solid fa-heart-circle-bolt"></i>
-          </div>
-          <h4 class="text-base sm:text-lg font-black text-[#f6f8fa] tracking-tight group-hover:text-[#38bdf8] transition-colors">1:1 케미 &amp; 궁합 랭킹</h4>
-          <p class="text-xs text-[#848c96] mt-1.5 leading-relaxed">단톡방 최고 영혼의 단짝 순위, 티키타카 상호작용 및 1:1 궁합 시뮬레이터</p>
-        </button>
+            <!-- 3. 1:1 케미 & 궁합 랭킹 -->
+            <button onclick="openReportDetail('tabChemistry')" class="menu-nav-btn group text-left p-6 sm:p-7 rounded-[32px] border transition-all duration-300 bg-[#090e13] border-white/[0.08] hover:border-[#38bdf8] hover:bg-[#111820] hover:-translate-y-1 shadow-[0_4px_24px_rgba(0,0,0,0.3)]">
+              <div class="w-12 h-12 rounded-2xl bg-[#111820] text-[#38bdf8] group-hover:bg-[#38bdf8] group-hover:text-[#030708] flex items-center justify-center text-xl mb-4 border border-white/[0.08] transition-all">
+                <i class="fa-solid fa-heart-circle-bolt"></i>
+              </div>
+              <h4 class="text-base sm:text-lg font-black text-[#f6f8fa] tracking-tight group-hover:text-[#38bdf8] transition-colors">1:1 케미 &amp; 궁합 랭킹</h4>
+              <p class="text-xs text-[#848c96] mt-1.5 leading-relaxed">단톡방 최고 영혼의 단짝 순위, 티키타카 상호작용 및 1:1 궁합 시뮬레이터</p>
+            </button>
 
-        <!-- 4. 활동 패턴 & 시그니처 키워드 -->
-        <button onclick="openReportDetail('tabActivity')" class="menu-nav-btn group text-left p-6 sm:p-7 rounded-[32px] border transition-all duration-300 bg-[#090e13] border-white/[0.08] hover:border-emerald-400 hover:bg-[#111820] hover:-translate-y-1 shadow-[0_4px_24px_rgba(0,0,0,0.3)]">
-          <div class="w-12 h-12 rounded-2xl bg-[#111820] text-emerald-400 group-hover:bg-emerald-400 group-hover:text-[#030708] flex items-center justify-center text-xl mb-4 border border-white/[0.08] transition-all">
-            <i class="fa-solid fa-chart-line"></i>
+            <!-- 4. 활동 패턴 & 시그니처 키워드 -->
+            <button onclick="openReportDetail('tabActivity')" class="menu-nav-btn group text-left p-6 sm:p-7 rounded-[32px] border transition-all duration-300 bg-[#090e13] border-white/[0.08] hover:border-emerald-400 hover:bg-[#111820] hover:-translate-y-1 shadow-[0_4px_24px_rgba(0,0,0,0.3)]">
+              <div class="w-12 h-12 rounded-2xl bg-[#111820] text-emerald-400 group-hover:bg-emerald-400 group-hover:text-[#030708] flex items-center justify-center text-xl mb-4 border border-white/[0.08] transition-all">
+                <i class="fa-solid fa-chart-line"></i>
+              </div>
+              <h4 class="text-base sm:text-lg font-black text-[#f6f8fa] tracking-tight group-hover:text-emerald-400 transition-colors">활동 패턴 &amp; 키워드</h4>
+              <p class="text-xs text-[#848c96] mt-1.5 leading-relaxed">24시간 타임라인, 요일별 집중도, 새벽의 망령, 시그니처 단어 TOP 24</p>
+            </button>
           </div>
-          <h4 class="text-base sm:text-lg font-black text-[#f6f8fa] tracking-tight group-hover:text-emerald-400 transition-colors">활동 패턴 &amp; 키워드</h4>
-          <p class="text-xs text-[#848c96] mt-1.5 leading-relaxed">24시간 타임라인, 요일별 집중도, 새벽의 망령, 시그니처 단어 TOP 24</p>
-        </button>
-      </div>
+
+          <!-- 불투명도 그라데이션 페이드아웃 오버레이 -->
+          <div id="deepDiveFadeOverlay" class="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[#030708] via-[#030708]/85 to-transparent pointer-events-none transition-opacity duration-300"></div>
+        </div>
+
+        <!-- 더보기 / 접기 토글 버튼 -->
+        <div class="text-center mt-3">
+          <button id="btnToggleDeepDive" onclick="toggleDeepDiveReports()" class="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-[#111820] hover:bg-[#16202a] text-[#f6f8fa] hover:text-[#f5b73d] text-xs font-bold border border-white/[0.12] transition-all duration-300 shadow-[0_4px_20px_rgba(0,0,0,0.4)] group hover:scale-105">
+            <span id="deepDiveToggleText">심층 분석 리포트 더보기</span>
+            <i id="deepDiveToggleIcon" class="fa-solid fa-chevron-down text-[#f5b73d] group-hover:translate-y-0.5 transition-transform"></i>
+          </button>
+        </div>
+      </section>
     </div>
 
     <!-- [B] 세부 내용 페이지 컨테이너 (버튼 클릭 시 표시되며, 상단에는 깔끔한 뒤로가기 헤더만 제시) -->
