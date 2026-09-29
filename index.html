@@ -56,7 +56,7 @@
   <!-- 플로팅 네비게이션 -->
   <header class="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-5xl">
     <div class="backdrop-blur-md bg-[#090e13]/90 rounded-full border border-white/[0.08] shadow-[0_4px_24px_rgba(0,0,0,0.3)] px-6 py-3 flex flex-wrap items-center justify-between gap-3">
-      <div class="flex items-center gap-2 cursor-pointer" onclick="showLandingView()">
+      <div class="flex items-center gap-2 cursor-pointer" onclick="handleHeaderHomeClick()">
         <span class="text-2xl">💬</span>
         <div>
           <h1 class="text-base font-black tracking-tight text-[#f6f8fa] flex items-center gap-2">
@@ -77,7 +77,7 @@
         <button id="navUploadBtn" onclick="triggerFileInput()" class="px-4 py-2 bg-[#f6f8fa] hover:bg-[#e2e8f0] text-[#030708] text-xs font-bold rounded-[20px] transition flex items-center gap-1.5 shadow-sm">
           <i class="fa-solid fa-file-arrow-up"></i> 카톡 분석하기
         </button>
-        <button id="navBackBtn" onclick="showLandingView()" class="px-4 py-2 bg-[#111820] hover:bg-[#16202a] text-[#f6f8fa] text-xs font-semibold rounded-[20px] transition hidden flex items-center gap-1.5 border border-white/[0.08]">
+        <button id="navBackBtn" onclick="handleNavBackClick()" class="px-4 py-2 bg-[#111820] hover:bg-[#16202a] text-[#f6f8fa] text-xs font-semibold rounded-[20px] transition hidden flex items-center gap-1.5 border border-white/[0.08]">
           <i class="fa-solid fa-arrow-left"></i> 처음으로
         </button>
       </div>
@@ -263,58 +263,109 @@
   <!-- ==================== 2. 분석 결과 리포트 뷰 ==================== -->
   <main id="reportView" class="max-w-6xl mx-auto px-4 py-6 space-y-6 w-full flex-grow hidden">
 
-    <!-- [A] 리포트 홈 대시보드 (분석 완료 시 처음 보이는 화면: 헤더 + 2x2 메뉴만 제시) -->
-    <div id="reportHomeDashboard" class="space-y-8 py-4">
-      <!-- 1. 단톡방 헤더 (단톡방 이름 & 우정 등급 중심의 미니멀 헤더) -->
-      <div class="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-white/[0.08]">
-        <div class="flex items-center gap-3">
-          <span class="text-3xl sm:text-4xl" id="roomIcon">🏆</span>
-          <div>
-            <div class="flex items-center gap-2.5 flex-wrap">
-              <h3 class="text-xl sm:text-2xl font-black text-[#f6f8fa] tracking-tight" id="roomTitle">단톡방 분석 리포트</h3>
-              <span id="roomGradeBadge" class="text-xs px-3 py-1 rounded-full bg-[#f5b73d] text-[#030708] font-black shadow-sm">우정 S+</span>
-            </div>
-            <p class="text-xs text-[#848c96] mt-1" id="roomSubText">분석 완료</p>
-          </div>
-        </div>
-        <div class="flex items-center gap-2 flex-wrap">
-          <button onclick="toggleAnonymize()" id="btnAnonymize" class="px-3 py-1.5 bg-[#111820] hover:bg-[#16202a] text-[#f6f8fa] text-xs font-semibold rounded-[20px] border border-white/[0.08] transition flex items-center gap-1.5">
-            <i class="fa-solid fa-user-secret"></i> <span id="anonymizeText">가명 모드</span>
-          </button>
-          <button onclick="openShareModal()" class="px-3.5 py-1.5 bg-[#f5b73d] hover:opacity-90 text-[#030708] text-xs font-black rounded-[20px] transition flex items-center gap-1.5 shadow-sm">
-            <i class="fa-solid fa-sparkles"></i> <span>포토카드 공유</span>
-          </button>
-          <button onclick="showLandingView()" class="px-3 py-1.5 bg-[#111820] hover:bg-[#16202a] text-[#f6f8fa] text-xs font-semibold rounded-[20px] border border-white/[0.08] transition flex items-center gap-1.5">
-            <i class="fa-solid fa-arrow-rotate-left"></i> 새 파일
-          </button>
-        </div>
-      </div>
-
-      <!-- 안내 문구 -->
-      <div class="text-center space-y-1 pt-2">
-        <p class="text-xs font-bold text-[#f5b73d] uppercase tracking-widest">ANALYSIS COMPLETE</p>
-        <h3 class="text-lg sm:text-xl font-black text-[#f6f8fa]">확인하고 싶은 분석 리포트를 선택하세요</h3>
-        <p class="text-xs text-[#848c96]">카드를 누르면 해당 상세 분석 화면으로 바로 이동합니다.</p>
-      </div>
-
-      <!-- 2. 네가지 2x2 라운드 스퀘어 네비게이션 버튼 (대형 카드 스타일) -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-3xl mx-auto">
-        <!-- 1. 종합 우정 성적표 -->
-        <button onclick="openReportDetail('tabOverview')" class="menu-nav-btn group text-left p-6 sm:p-7 rounded-[32px] border transition-all duration-300 bg-[#090e13] border-white/[0.08] hover:border-[#f5b73d] hover:bg-[#111820] hover:-translate-y-1 shadow-[0_4px_24px_rgba(0,0,0,0.3)]">
-          <div class="w-12 h-12 rounded-2xl bg-[#111820] text-[#f5b73d] group-hover:bg-[#f5b73d] group-hover:text-[#030708] flex items-center justify-center text-xl mb-4 border border-white/[0.08] transition-all">
-            <i class="fa-solid fa-award"></i>
-          </div>
-          <h4 class="text-base sm:text-lg font-black text-[#f6f8fa] tracking-tight group-hover:text-[#f5b73d] transition-colors">종합 우정 성적표</h4>
-          <p class="text-xs text-[#848c96] mt-1.5 leading-relaxed">알고리즘 톡방 총평, 폭력·평화 지수, 발화 랭킹 및 멤버 구성 라인업</p>
+    <!-- [A] 리포트 홈 대시보드 (분석 완료 시 처음 보이는 화면: 종합 성적표 선공개 + 하단 4개 메뉴 버튼) -->
+    <div id="reportHomeDashboard" class="space-y-8 py-2">
+      <!-- 1. 상단 미니멀 액션바 (가명 모드, 포토카드 공유, 새 파일) -->
+      <div class="flex items-center justify-end gap-2 pb-3 border-b border-white/[0.08] flex-wrap">
+        <button onclick="toggleAnonymize()" id="btnAnonymize" class="px-3 py-1.5 bg-[#111820] hover:bg-[#16202a] text-[#f6f8fa] text-xs font-semibold rounded-[20px] border border-white/[0.08] transition flex items-center gap-1.5">
+          <i class="fa-solid fa-user-secret"></i> <span id="anonymizeText">가명 모드</span>
         </button>
+        <button onclick="openShareModal()" class="px-3.5 py-1.5 bg-[#f5b73d] hover:opacity-90 text-[#030708] text-xs font-black rounded-[20px] transition flex items-center gap-1.5 shadow-sm">
+          <i class="fa-solid fa-sparkles"></i> <span>포토카드 공유</span>
+        </button>
+        <button onclick="showLandingView()" class="px-3 py-1.5 bg-[#111820] hover:bg-[#16202a] text-[#f6f8fa] text-xs font-semibold rounded-[20px] border border-white/[0.08] transition flex items-center gap-1.5">
+          <i class="fa-solid fa-arrow-rotate-left"></i> 새 파일
+        </button>
+      </div>
 
-        <!-- 2. 인물별 CTI 팩폭 카드 -->
+      <!-- 2. 종합 우정 성적표 (분석 완료 시 최상단 기본 노출) -->
+      <section id="dashboardOverviewSection" class="space-y-6">
+        <!-- 톡방 총평 배너 -->
+        <div class="bg-[#090e13] border border-white/[0.08] rounded-[32px] p-5 md:p-6 space-y-2.5 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
+          <div class="flex items-center justify-between">
+            <h4 class="text-sm font-bold text-[#f6f8fa] flex items-center gap-2">
+              <i class="fa-solid fa-magnifying-glass-chart text-[#f5b73d]"></i> 알고리즘이 분석한 톡방 총평
+            </h4>
+            <span class="text-[11px] px-2.5 py-0.5 rounded-full bg-[#111820] text-[#848c96] border border-white/[0.08] font-semibold">AI 종합 성적표</span>
+          </div>
+          <p class="text-sm md:text-base text-[#f6f8fa] leading-relaxed font-medium" id="groupVibeText">
+            분석 중입니다.
+          </p>
+        </div>
+
+        <!-- 4개 핵심 통계 지표 -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div class="bg-[#090e13] border border-white/[0.08] rounded-[32px] p-4 space-y-1 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
+            <p class="text-xs text-[#848c96] font-medium">폭력 지수</p>
+            <div class="flex items-baseline gap-2">
+              <span class="text-3xl font-black text-[#f5b73d]" id="statTension">0%</span>
+              <span class="text-xs text-emerald-300 bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-800/60" id="statPeaceBadge">평화 100%</span>
+            </div>
+            <p class="text-[11px] text-[#848c96]" id="statTensionDesc">악의적 비난 없는 무자극 청정 구역</p>
+          </div>
+
+          <div class="bg-[#090e13] border border-white/[0.08] rounded-[32px] p-4 space-y-1 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
+            <p class="text-xs text-[#848c96] font-medium">총 분석 발화량</p>
+            <div class="flex items-baseline gap-2">
+              <span class="text-3xl font-black text-[#f5b73d]" id="statTotalMsgs">0</span>
+              <span class="text-xs text-[#848c96]">건</span>
+            </div>
+            <p class="text-[11px] text-[#848c96]" id="statAvgMsgs">참여자 평균 집계</p>
+          </div>
+
+          <div class="bg-[#090e13] border border-white/[0.08] rounded-[32px] p-4 space-y-1 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
+            <p class="text-xs text-[#848c96] font-medium">최다 발화 수다쟁이</p>
+            <div class="flex items-baseline gap-2">
+              <span class="text-2xl font-black text-[#f6f8fa]" id="statTopTalker">-</span>
+              <span class="text-xs text-[#f5b73d] font-bold" id="statTopRatio">0%</span>
+            </div>
+            <p class="text-[11px] text-[#848c96]">단톡방의 대화 점화 엔진</p>
+          </div>
+
+          <div class="bg-[#090e13] border border-white/[0.08] rounded-[32px] p-4 space-y-1 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
+            <p class="text-xs text-[#848c96] font-medium">1:1 최강 영혼의 단짝</p>
+            <div class="flex items-baseline gap-2">
+              <span class="text-xl font-black text-[#38bdf8]" id="statTopPair">-</span>
+              <span class="text-xs text-[#38bdf8] font-bold" id="statTopPairCount">-</span>
+            </div>
+            <p class="text-[11px] text-[#848c96]">최다 티키타카 상호작용</p>
+          </div>
+        </div>
+
+        <!-- 참여자 CTI 미니 요약 그리드 (한 줄당 4명 라운드 스퀘어) -->
+        <div class="space-y-3">
+          <h4 class="text-sm font-bold text-[#f6f8fa] flex items-center gap-2">
+            <i class="fa-solid fa-users text-[#f5b73d]"></i> 단톡방 CTI 구성원 라인업
+          </h4>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="overviewMemberGrid"></div>
+        </div>
+      </section>
+
+      <!-- 3. 상세 리포트 바로가기 안내 문구 -->
+      <div class="text-center space-y-1 pt-6 border-t border-white/[0.08]">
+        <p class="text-xs font-bold text-[#f5b73d] uppercase tracking-widest">DEEP DIVE REPORT</p>
+        <h3 class="text-lg sm:text-xl font-black text-[#f6f8fa]">더 알고 싶은 심층 분석 리포트를 선택하세요</h3>
+        <p class="text-xs text-[#848c96]">카드를 누르면 친구별 팩폭 카드, 맞춤 리포트, 1:1 케미 등 상세 화면으로 이동합니다.</p>
+      </div>
+
+      <!-- 4. 라운드 스퀘어 네비게이션 버튼 4개 (1줄 4개 / 모바일 그리드) -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-6xl mx-auto">
+        <!-- 1. 인물별 CTI 팩폭 카드 -->
         <button onclick="openReportDetail('tabCharacters')" class="menu-nav-btn group text-left p-6 sm:p-7 rounded-[32px] border transition-all duration-300 bg-[#090e13] border-white/[0.08] hover:border-[#f5b73d] hover:bg-[#111820] hover:-translate-y-1 shadow-[0_4px_24px_rgba(0,0,0,0.3)]">
           <div class="w-12 h-12 rounded-2xl bg-[#111820] text-[#f5b73d] group-hover:bg-[#f5b73d] group-hover:text-[#030708] flex items-center justify-center text-xl mb-4 border border-white/[0.08] transition-all">
             <i class="fa-solid fa-address-card"></i>
           </div>
           <h4 class="text-base sm:text-lg font-black text-[#f6f8fa] tracking-tight group-hover:text-[#f5b73d] transition-colors">인물별 CTI 팩폭 카드</h4>
           <p class="text-xs text-[#848c96] mt-1.5 leading-relaxed">개인별 4대 지표 레이더 차트, 시그니처 대사, 뼈 때리는 팩폭 신상명세서</p>
+        </button>
+
+        <!-- 2. 인물별 맞춤 리포트 -->
+        <button onclick="openReportDetail('tabPersonalFocus')" class="menu-nav-btn group text-left p-6 sm:p-7 rounded-[32px] border transition-all duration-300 bg-[#090e13] border-white/[0.08] hover:border-amber-400 hover:bg-[#111820] hover:-translate-y-1 shadow-[0_4px_24px_rgba(0,0,0,0.3)]">
+          <div class="w-12 h-12 rounded-2xl bg-[#111820] text-amber-400 group-hover:bg-amber-400 group-hover:text-[#030708] flex items-center justify-center text-xl mb-4 border border-white/[0.08] transition-all">
+            <i class="fa-solid fa-crosshairs"></i>
+          </div>
+          <h4 class="text-base sm:text-lg font-black text-[#f6f8fa] tracking-tight group-hover:text-amber-400 transition-colors">인물별 맞춤 리포트</h4>
+          <p class="text-xs text-[#848c96] mt-1.5 leading-relaxed">특정 친구나 나를 선택해 최고 영혼의 단짝, 피크 타임, 시그니처 말버릇 집중 분석</p>
         </button>
 
         <!-- 3. 1:1 케미 & 궁합 랭킹 -->
@@ -359,125 +410,154 @@
         </div>
       </div>
 
-      <!-- 각 페이지 공통 시점별 맞춤보기 바 (페이지 내부에서 동작) -->
-      <div id="pageFocusControlBar" class="bg-[#090e13] border border-white/[0.08] rounded-[24px] px-4 py-3 flex flex-wrap items-center justify-between gap-3 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
+    <!-- 탭: 인물별 맞춤 리포트 (독립 탭) -->
+    <section id="tabPersonalFocus" class="tab-content hidden space-y-6">
+      <div class="space-y-1">
+        <h3 class="text-lg sm:text-xl font-black text-[#f6f8fa] flex items-center gap-2">
+          <span>🎯</span> 인물별 맞춤 리포트 &amp; 개인 심층 분석
+        </h3>
+        <p class="text-xs text-[#848c96]">분석하고 싶은 멤버를 선택하면 그 인물 중심의 단짝, 피크 타임, 말버릇 등이 요약됩니다.</p>
+      </div>
+
+      <!-- 멤버 선택 바 -->
+      <div class="bg-[#090e13] border border-white/[0.08] rounded-[24px] px-4 py-3.5 flex flex-wrap items-center justify-between gap-3 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
         <div class="flex items-center gap-2">
           <span class="text-xs font-bold text-[#f5b73d] px-2.5 py-1 bg-[rgba(245, 183, 61,0.12)] rounded-full border border-[rgba(245, 183, 61,0.3)] flex items-center gap-1.5">
-            <i class="fa-solid fa-crosshairs"></i> 시점별 맞춤보기
+            <i class="fa-solid fa-user-check"></i> 분석 대상 선택
           </span>
-          <span class="text-xs text-[#848c96] hidden sm:inline">멤버를 선택하면 해당 인물 중심 데이터로 필터링됩니다</span>
+          <span class="text-xs text-[#848c96] hidden sm:inline">멤버를 클릭해보세요</span>
         </div>
         <div class="flex items-center gap-1.5 flex-wrap" id="focusMemberFilterContainer">
           <!-- 멤버 버튼 동적 렌더링 -->
         </div>
       </div>
 
-      <!-- 선택된 멤버 포커스 요약 배너 -->
-      <div id="focusBanner" class="hidden bg-[#090e13] border border-[rgba(245, 183, 61,0.35)] rounded-[24px] p-4 sm:p-5 space-y-3 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <div class="flex items-center gap-3">
-            <span class="text-2xl sm:text-3xl" id="focusAvatar">🔥</span>
+      <!-- 선택된 멤버 포커스 상세 카드 -->
+      <div id="focusBanner" class="bg-[#090e13] border border-[rgba(245, 183, 61,0.35)] rounded-[32px] p-6 sm:p-7 space-y-6 shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
+        <div class="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-white/[0.08]">
+          <div class="flex items-center gap-4">
+            <div class="w-16 h-16 rounded-2xl bg-[#111820] border border-white/[0.08] flex items-center justify-center text-3xl shadow-sm" id="focusAvatar">
+              🔥
+            </div>
             <div>
-              <h4 class="text-sm sm:text-base font-black text-[#f6f8fa] flex items-center gap-2">
-                <span id="focusName">멤버</span> 중심 맞춤 리포트
+              <div class="flex items-center gap-2.5 flex-wrap">
+                <h4 class="text-xl sm:text-2xl font-black text-[#f6f8fa] flex items-center gap-2">
+                  <span id="focusName">멤버</span> 맞춤 리포트
+                </h4>
                 <span id="focusCtiBadge" class="text-xs px-2.5 py-0.5 rounded-full bg-[#f5b73d] text-[#030708] font-bold">CTI</span>
-              </h4>
-              <p class="text-xs text-[#848c96] mt-0.5" id="focusPersonaText">-</p>
+              </div>
+              <p class="text-xs sm:text-sm text-[#848c96] mt-1" id="focusPersonaText">-</p>
             </div>
           </div>
-          <button onclick="clearFocusMember()" class="text-xs px-3 py-1.5 bg-[#111820] hover:bg-[#16202a] text-[#f6f8fa] rounded-[20px] transition border border-white/[0.08] flex items-center gap-1.5">
-            <i class="fa-solid fa-xmark"></i> 전체 시점으로 복귀
-          </button>
-        </div>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1">
-          <div class="bg-[#030708] border border-white/[0.08] rounded-xl p-3">
-            <p class="text-[11px] text-[#848c96] font-medium">나와 최고 영혼의 단짝</p>
-            <p class="text-xs sm:text-sm font-bold text-[#f5b73d] mt-1" id="focusTopSoulmate">-</p>
-          </div>
-          <div class="bg-[#030708] border border-white/[0.08] rounded-xl p-3">
-            <p class="text-[11px] text-[#848c96] font-medium">나의 대표 시그니처 말버릇</p>
-            <p class="text-xs sm:text-sm font-bold text-[#f6f8fa] mt-1" id="focusTopWords">-</p>
-          </div>
-          <div class="bg-[#030708] border border-white/[0.08] rounded-xl p-3">
-            <p class="text-[11px] text-[#848c96] font-medium">나의 주 활동 피크 타임</p>
-            <p class="text-xs sm:text-sm font-bold text-[#f5b73d] mt-1" id="focusActiveHours">-</p>
-          </div>
-        </div>
-      </div>
-
-    <!-- 탭 1: 종합 우정 성적표 -->
-    <section id="tabOverview" class="tab-content space-y-6">
-
-      <!-- 톡방 총평 배너 -->
-      <div class="bg-[#090e13] border border-white/[0.08] rounded-[32px] p-5 md:p-6 space-y-2.5 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
-        <div class="flex items-center justify-between">
-          <h4 class="text-sm font-bold text-[#f6f8fa] flex items-center gap-2">
-            <i class="fa-solid fa-magnifying-glass-chart text-[#f5b73d]"></i> 알고리즘이 분석한 톡방 총평
-          </h4>
-          <span class="text-[11px] px-2.5 py-0.5 rounded-full bg-[#111820] text-[#848c96] border border-white/[0.08] font-semibold">AI 진단 요약</span>
-        </div>
-        <p class="text-sm md:text-base text-[#f6f8fa] leading-relaxed font-medium" id="groupVibeText">
-          분석 중입니다.
-        </p>
-      </div>
-
-      <!-- 4개 핵심 통계 지표 -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div class="bg-[#090e13] border border-white/[0.08] rounded-[32px] p-4 space-y-1 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
-          <p class="text-xs text-[#848c96] font-medium">폭력 지수</p>
-          <div class="flex items-baseline gap-2">
-            <span class="text-3xl font-black text-[#f5b73d]" id="statTension">0%</span>
-            <span class="text-xs text-emerald-300 bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-800/60" id="statPeaceBadge">평화 100%</span>
-          </div>
-          <p class="text-[11px] text-[#848c96]" id="statTensionDesc">악의적 비난 없는 무자극 청정 구역</p>
         </div>
 
-        <div class="bg-[#090e13] border border-white/[0.08] rounded-[32px] p-4 space-y-1 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
-          <p class="text-xs text-[#848c96] font-medium">총 분석 발화량</p>
-          <div class="flex items-baseline gap-2">
-            <span class="text-3xl font-black text-[#f5b73d]" id="statTotalMsgs">0</span>
-            <span class="text-xs text-[#848c96]">건</span>
+        <!-- 핵심 요약 3개 카드 -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+          <div class="bg-[#030708] border border-white/[0.08] rounded-2xl p-4 space-y-1">
+            <p class="text-xs text-[#848c96] font-medium flex items-center gap-1.5">
+              <i class="fa-solid fa-heart text-rose-400"></i> 최고 영혼의 단짝
+            </p>
+            <p class="text-sm sm:text-base font-bold text-[#f5b73d] mt-1" id="focusTopSoulmate">-</p>
+            <p class="text-[11px] text-[#848c96]">가장 많은 티키타카를 주고받은 상대</p>
           </div>
-          <p class="text-[11px] text-[#848c96]" id="statAvgMsgs">참여자 평균 집계</p>
+          <div class="bg-[#030708] border border-white/[0.08] rounded-2xl p-4 space-y-1">
+            <p class="text-xs text-[#848c96] font-medium flex items-center gap-1.5">
+              <i class="fa-solid fa-comment-dots text-[#38bdf8]"></i> 대표 시그니처 말버릇
+            </p>
+            <p class="text-sm sm:text-base font-bold text-[#f6f8fa] mt-1" id="focusTopWords">-</p>
+            <p class="text-[11px] text-[#848c96]">입에 달고 사는 최다 어휘</p>
+          </div>
+          <div class="bg-[#030708] border border-white/[0.08] rounded-2xl p-4 space-y-1">
+            <p class="text-xs text-[#848c96] font-medium flex items-center gap-1.5">
+              <i class="fa-solid fa-clock text-emerald-400"></i> 주 활동 피크 타임
+            </p>
+            <p class="text-sm sm:text-base font-bold text-emerald-400 mt-1" id="focusActiveHours">-</p>
+            <p class="text-[11px] text-[#848c96]">가장 왕성하게 톡을 남긴 시간대</p>
+          </div>
         </div>
 
-        <div class="bg-[#090e13] border border-white/[0.08] rounded-[32px] p-4 space-y-1 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
-          <p class="text-xs text-[#848c96] font-medium">최다 발화 수다쟁이</p>
-          <div class="flex items-baseline gap-2">
-            <span class="text-2xl font-black text-[#f6f8fa]" id="statTopTalker">-</span>
-            <span class="text-xs text-[#f5b73d] font-bold" id="statTopRatio">0%</span>
+        <!-- 추가 심층 수치 4종 그리드 -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+          <div class="bg-[#111820] border border-white/[0.06] rounded-2xl p-3.5 space-y-1 text-center">
+            <span class="text-[11px] text-[#848c96]">단톡방 점유율</span>
+            <p class="text-base sm:text-lg font-black text-[#f6f8fa]" id="focusMsgRatio">-</p>
+            <span class="text-[10px] text-[#848c96]" id="focusTotalMsgs">-</span>
           </div>
-          <p class="text-[11px] text-[#848c96]">단톡방의 대화 점화 엔진</p>
+          <div class="bg-[#111820] border border-white/[0.06] rounded-2xl p-3.5 space-y-1 text-center">
+            <span class="text-[11px] text-[#848c96]">답장 속도 반응성</span>
+            <p class="text-base sm:text-lg font-black text-[#f5b73d]" id="focusReplySpeed">-</p>
+            <span class="text-[10px] text-[#848c96]" id="focusReplySpeedSub">-</span>
+          </div>
+          <div class="bg-[#111820] border border-white/[0.06] rounded-2xl p-3.5 space-y-1 text-center">
+            <span class="text-[11px] text-[#848c96]">새벽 활동 (망령도)</span>
+            <p class="text-base sm:text-lg font-black text-indigo-400" id="focusOwlRatio">-</p>
+            <span class="text-[10px] text-[#848c96]" id="focusOwlRatioSub">00시~06시 활동</span>
+          </div>
+          <div class="bg-[#111820] border border-white/[0.06] rounded-2xl p-3.5 space-y-1 text-center">
+            <span class="text-[11px] text-[#848c96]">호출(멘션) 민감도</span>
+            <p class="text-base sm:text-lg font-black text-rose-400" id="focusMentionCount">-</p>
+            <span class="text-[10px] text-[#848c96]">친구들이 부른 횟수</span>
+          </div>
         </div>
 
-        <div class="bg-[#090e13] border border-white/[0.08] rounded-[32px] p-4 space-y-1 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
-          <p class="text-xs text-[#848c96] font-medium">1:1 최강 영혼의 단짝</p>
-          <div class="flex items-baseline gap-2">
-            <span class="text-xl font-black text-[#38bdf8]" id="statTopPair">-</span>
-            <span class="text-xs text-[#38bdf8] font-bold" id="statTopPairCount">-</span>
-          </div>
-          <p class="text-[11px] text-[#848c96]">최다 티키타카 상호작용</p>
+        <!-- 해당 인물의 톡방 내 관계 랭킹 (누구와 케미가 높고 낮은지) -->
+        <div class="space-y-3 pt-2">
+          <h5 class="text-xs font-bold text-[#848c96] uppercase tracking-wider flex items-center gap-1.5">
+            <i class="fa-solid fa-users-viewfinder text-[#f5b73d]"></i> 이 멤버와 단톡방 친구들의 1:1 관계도
+          </h5>
+          <div id="focusMemberPairList" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
         </div>
-      </div>
-
-      <!-- 참여자 CTI 미니 요약 그리드 -->
-      <div class="space-y-3">
-        <h4 class="text-sm font-bold text-[#f6f8fa] flex items-center gap-2">
-          <i class="fa-solid fa-users text-[#f5b73d]"></i> 단톡방 CTI 구성원 라인업
-        </h4>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" id="overviewMemberGrid"></div>
       </div>
     </section>
 
-    <!-- 탭 2: 인물별 CTI 팩폭 카드 -->
+    <!-- 탭 2: 인물별 CTI 팩폭 카드 (카드 덱 넘기기) -->
     <section id="tabCharacters" class="tab-content hidden space-y-6">
-      <div class="flex items-center justify-between">
+      <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 class="text-lg font-bold text-[#f6f8fa]">참여자별 CTI 캐릭터 카드 &amp; 팩폭 신상명세서</h3>
-          <p class="text-xs text-[#848c96]">발화 습관, 전투력 스탯, 시그니처 대사, 뼈 때리는 성찰 피드백</p>
+          <h3 class="text-lg sm:text-xl font-black text-[#f6f8fa] flex items-center gap-2">
+            <span>🪪</span> 참여자별 CTI 캐릭터 카드 덱
+          </h3>
+          <p class="text-xs text-[#848c96] mt-0.5">상단 프로필을 누르거나 좌우 화살표를 눌러 친구들의 카드를 넘겨보세요</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-mono text-[#f5b73d] bg-[#111820] px-3 py-1 rounded-full border border-white/[0.08]" id="charDeckCounter">
+            1 / 4
+          </span>
         </div>
       </div>
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6" id="characterCardsContainer"></div>
+
+      <!-- 멤버 선택 가로 아바타 바 -->
+      <div class="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-2" id="charDeckMemberList">
+        <!-- 동적 렌더링 -->
+      </div>
+
+      <!-- 메인 1장 집중 카드 덱 컨테이너 & 좌우 넘기기 버튼 -->
+      <div class="relative flex items-center justify-center py-2">
+        <!-- 좌측 이전 버튼 -->
+        <button onclick="prevCharCard()" class="hidden sm:flex absolute -left-4 md:-left-6 z-20 w-12 h-12 rounded-full bg-[#111820] hover:bg-[#16202a] text-[#f6f8fa] hover:text-[#f5b73d] items-center justify-center border border-white/[0.1] shadow-[0_8px_20px_rgba(0,0,0,0.5)] transition hover:scale-110">
+          <i class="fa-solid fa-chevron-left text-lg"></i>
+        </button>
+
+        <!-- 현재 선택된 1장의 대형 캐릭터 카드 뷰 -->
+        <div class="w-full max-w-2xl" id="characterCardDeckView">
+          <!-- 동적 렌더링 -->
+        </div>
+
+        <!-- 우측 다음 버튼 -->
+        <button onclick="nextCharCard()" class="hidden sm:flex absolute -right-4 md:-right-6 z-20 w-12 h-12 rounded-full bg-[#111820] hover:bg-[#16202a] text-[#f6f8fa] hover:text-[#f5b73d] items-center justify-center border border-white/[0.1] shadow-[0_8px_20px_rgba(0,0,0,0.5)] transition hover:scale-110">
+          <i class="fa-solid fa-chevron-right text-lg"></i>
+        </button>
+      </div>
+
+      <!-- 모바일용 하단 이전/다음 및 인디케이터 바 -->
+      <div class="flex sm:hidden items-center justify-between gap-3 pt-1">
+        <button onclick="prevCharCard()" class="flex-1 py-2.5 rounded-2xl bg-[#111820] text-xs font-bold text-[#f6f8fa] flex items-center justify-center gap-1.5 border border-white/[0.08]">
+          <i class="fa-solid fa-chevron-left"></i> 이전 친구
+        </button>
+        <button onclick="nextCharCard()" class="flex-1 py-2.5 rounded-2xl bg-[#f5b73d] text-xs font-black text-[#030708] flex items-center justify-center gap-1.5 shadow-sm">
+          다음 친구 <i class="fa-solid fa-chevron-right"></i>
+        </button>
+      </div>
     </section>
 
     <!-- 탭 3: 1:1 케미 & 궁합 랭킹 -->
@@ -488,7 +568,16 @@
         </h3>
         <p class="text-xs text-[#848c96]">누가 누구와 가장 가깝고, 어떤 티키타카를 주고받을까?</p>
       </div>
-      <div class="space-y-4" id="pairRankingsContainer"></div>
+      <!-- 상위 TOP 3 명예의 전당 쇼케이스 -->
+      <div id="pairTopShowcaseContainer" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+
+      <!-- 나머지 케미스트리 랭킹 2열 그리드 -->
+      <div class="space-y-2 pt-2">
+        <h4 class="text-xs font-bold text-[#848c96] uppercase tracking-wider flex items-center gap-1.5">
+          <i class="fa-solid fa-list-ol text-[#f5b73d]"></i> 전체 케미 &amp; 상성 목록
+        </h4>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5" id="pairRankingsContainer"></div>
+      </div>
 
       <!-- 자유 조합 궁합 계산기 -->
       <div class="bg-[#090e13] border border-white/[0.08] rounded-[32px] p-6 space-y-4 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">

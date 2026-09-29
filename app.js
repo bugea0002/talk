@@ -144,6 +144,23 @@ function loadSampleDemo(event) {
   triggerConfetti();
 }
 
+function handleHeaderHomeClick() {
+  if (currentData) {
+    // 분석된 데이터가 있으면 파일 업로드 화면으로 나가지 않고 리포트 홈 대시보드로 이동
+    returnToReportHome();
+  } else {
+    showLandingView();
+  }
+}
+
+function handleNavBackClick() {
+  if (currentData) {
+    returnToReportHome();
+  } else {
+    showLandingView();
+  }
+}
+
 function showLandingView() {
   document.getElementById("landingView").classList.remove("hidden");
   document.getElementById("reportView").classList.add("hidden");
@@ -173,6 +190,7 @@ function openReportDetail(tabId) {
   const badgeTitleMap = {
     tabOverview: "🏆 종합 우정 성적표",
     tabCharacters: "🪪 인물별 CTI 팩폭 카드",
+    tabPersonalFocus: "🎯 인물별 맞춤 리포트",
     tabChemistry: "⚡ 1:1 케미 & 궁합 랭킹",
     tabActivity: "📈 활동 패턴 & 시그니처 키워드",
     tabEncyclopedia: "📖 CTI 16가지 성향 도감"
@@ -192,6 +210,9 @@ function openReportDetail(tabId) {
   }
   if (tabId === "tabActivity") {
     setTimeout(renderActivityCharts, 50);
+  }
+  if (tabId === "tabPersonalFocus") {
+    renderFocusFilterBar();
   }
 
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -216,9 +237,12 @@ function switchTab(tabId) {
 function renderCurrentData() {
   if (!currentData) return;
 
-  document.getElementById("roomTitle").innerText = currentData.roomName;
-  document.getElementById("roomGradeBadge").innerText = `우정 ${currentData.groupGrade}`;
-  document.getElementById("roomSubText").innerText = `${currentData.dateRange} • 총 ${currentData.totalMessages.toLocaleString()}건 분석`;
+  const titleEl = document.getElementById("roomTitle");
+  if (titleEl) titleEl.innerText = currentData.roomName;
+  const gradeEl = document.getElementById("roomGradeBadge");
+  if (gradeEl) gradeEl.innerText = `우정 ${currentData.groupGrade}`;
+  const subEl = document.getElementById("roomSubText");
+  if (subEl) subEl.innerText = `${currentData.dateRange} • 총 ${currentData.totalMessages.toLocaleString()}건 분석`;
 
   document.getElementById("statTension").innerText = `${currentData.tensionIndex}%`;
   const peaceBadge = document.getElementById("statPeaceBadge");
@@ -264,65 +288,132 @@ function renderCurrentData() {
 
 function renderFocusFilterBar() {
   const container = document.getElementById("focusMemberFilterContainer");
-  if (!container || !currentData || !currentData.members) return;
+  if (!container || !currentData || !currentData.members || currentData.members.length === 0) return;
   container.innerHTML = "";
 
-  const allBtn = document.createElement("button");
-  const isAll = focusedMemberId === null;
-  allBtn.className = `px-4 py-1.5 rounded-full text-xs font-medium transition flex items-center gap-1.5 ${isAll ? 'bg-[#f6f8fa] text-[#030708] font-bold shadow-sm' : 'bg-[#111820] text-[#f6f8fa] hover:bg-[#16202a] border border-white/[0.08]'}`;
-  allBtn.innerHTML = `<i class="fa-solid fa-users text-[11px]"></i> <span>전체 시점</span>`;
-  allBtn.onclick = () => clearFocusMember();
-  container.appendChild(allBtn);
+  // 기본 선택 멤버가 없으면 첫 번째 멤버 자동 선택
+  if (!focusedMemberId) {
+    focusedMemberId = currentData.members[0].id || currentData.members[0].name;
+  }
 
   currentData.members.forEach(m => {
     const isFocused = focusedMemberId === m.id || focusedMemberId === m.name;
     const btn = document.createElement("button");
-    btn.className = `px-4 py-1.5 rounded-full text-xs font-medium transition flex items-center gap-1.5 ${isFocused ? 'bg-[#f6f8fa] text-[#030708] font-bold shadow-sm' : 'bg-[#111820] text-[#f6f8fa] hover:bg-[#16202a] border border-white/[0.08]'}`;
+    btn.className = `px-4 py-2 rounded-full text-xs font-bold transition flex items-center gap-1.5 border ${
+      isFocused 
+        ? 'bg-[#f5b73d] text-[#030708] border-[#f5b73d] shadow-sm scale-105' 
+        : 'bg-[#111820] text-[#f6f8fa] hover:bg-[#16202a] border-white/[0.08]'
+    }`;
     btn.innerHTML = `<span>${m.avatar}</span> <span>${m.name}</span>`;
     btn.onclick = () => selectFocusMember(m.id || m.name);
     container.appendChild(btn);
   });
+
+  updateFocusBannerCard();
+}
+
+function updateFocusBannerCard() {
+  if (!currentData || !currentData.members) return;
+  const m = currentData.members.find(x => x.id === focusedMemberId || x.name === focusedMemberId) || currentData.members[0];
+  if (!m) return;
+
+  const avatarEl = document.getElementById("focusAvatar");
+  if (avatarEl) avatarEl.innerText = m.avatar;
+
+  const nameEl = document.getElementById("focusName");
+  if (nameEl) nameEl.innerText = m.name;
+
+  const badgeEl = document.getElementById("focusCtiBadge");
+  if (badgeEl) badgeEl.innerHTML = getCtiBadgeHtml(m.cti);
+
+  const personaEl = document.getElementById("focusPersonaText");
+  if (personaEl) personaEl.innerText = `${m.timePersona || '활동가'} • 전체 대화의 ${m.msgRatio}% 담당`;
+
+  const pairs = (currentData.pairRankings || []).filter(p => p.pair.includes(m.name));
+  const soulmateEl = document.getElementById("focusTopSoulmate");
+  if (soulmateEl) {
+    if (pairs.length > 0) {
+      const topP = pairs.reduce((best, cur) => cur.score > best.score ? cur : best, pairs[0]);
+      const otherName = topP.pair[0] === m.name ? topP.pair[1] : topP.pair[0];
+      soulmateEl.innerText = `${otherName} (${topP.score}점, 티키타카 ${topP.replies.toLocaleString()}회)`;
+    } else {
+      soulmateEl.innerText = "단짝 데이터 집계 중";
+    }
+  }
+
+  const words = (m.topWords || []).slice(0, 3).map(w => `#${w.word}`).join(" ");
+  const wordsEl = document.getElementById("focusTopWords");
+  if (wordsEl) {
+    wordsEl.innerText = words || (m.signatures || []).slice(0, 3).join(", ") || "-";
+  }
+
+  const hoursEl = document.getElementById("focusActiveHours");
+  if (hoursEl) {
+    hoursEl.innerText = m.activeHours || "피크 타임";
+  }
+
+  // 추가 심층 지표
+  const ratioEl = document.getElementById("focusMsgRatio");
+  if (ratioEl) ratioEl.innerText = `${m.msgRatio}%`;
+
+  const totalMsgsEl = document.getElementById("focusTotalMsgs");
+  if (totalMsgsEl) totalMsgsEl.innerText = `총 ${m.totalMsgs.toLocaleString()}건`;
+
+  const replySpeedEl = document.getElementById("focusReplySpeed");
+  if (replySpeedEl) replySpeedEl.innerText = `${m.replySpeed || 15}분`;
+
+  const replySpeedSubEl = document.getElementById("focusReplySpeedSub");
+  if (replySpeedSubEl) {
+    const sp = m.replySpeed || 15;
+    replySpeedSubEl.innerText = sp <= 5 ? "⚡ 초고속 칼답러" : sp <= 20 ? "🚀 평균적 반응 속도" : "🐢 느긋한 확인";
+  }
+
+  const owlRatioEl = document.getElementById("focusOwlRatio");
+  if (owlRatioEl) owlRatioEl.innerText = `${m.owlRatio || 0}%`;
+
+  const mentionCountEl = document.getElementById("focusMentionCount");
+  if (mentionCountEl) mentionCountEl.innerText = `${m.mentionCount || 0}회`;
+
+  // 단톡방 친구들과의 1:1 관계도 렌더링
+  const pairListContainer = document.getElementById("focusMemberPairList");
+  if (pairListContainer) {
+    pairListContainer.innerHTML = "";
+    if (pairs.length > 0) {
+      // 점수 높은 순으로 정렬
+      const sortedPairs = [...pairs].sort((a, b) => b.score - a.score);
+      sortedPairs.forEach(p => {
+        const otherName = p.pair[0] === m.name ? p.pair[1] : p.pair[0];
+        const otherType = p.pair[0] === m.name ? p.types[1] : p.types[0];
+        const item = document.createElement("div");
+        item.className = "bg-[#030708] border border-white/[0.08] hover:border-white/[0.2] rounded-2xl p-3.5 flex items-center justify-between gap-2";
+        item.innerHTML = `
+          <div class="flex items-center gap-2.5">
+            <span class="text-base font-bold text-[#f6f8fa]">${otherName}</span>
+            ${getCtiBadgeHtml(otherType)}
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold text-[#f5b73d]">${p.score}점 (${p.grade}급)</span>
+            <span class="text-[11px] text-[#848c96] font-mono">티키타카 ${p.replies.toLocaleString()}회</span>
+          </div>
+        `;
+        pairListContainer.appendChild(item);
+      });
+    } else {
+      pairListContainer.innerHTML = `<p class="text-xs text-[#848c96] py-3 text-center col-span-2">단톡방 내 1:1 상호작용 데이터가 부족합니다.</p>`;
+    }
+  }
 }
 
 function selectFocusMember(memberId) {
   focusedMemberId = memberId;
-  const m = currentData.members.find(x => x.id === memberId || x.name === memberId);
-  if (!m) return;
-
-  const banner = document.getElementById("focusBanner");
-  if (banner) {
-    banner.classList.remove("hidden");
-    document.getElementById("focusName").innerText = m.name;
-    document.getElementById("focusAvatar").innerText = m.avatar;
-    document.getElementById("focusCtiBadge").innerHTML = getCtiBadgeHtml(m.cti);
-    document.getElementById("focusPersonaText").innerText = `${m.timePersona || '활동가'} • 전체 대화의 ${m.msgRatio}% 담당`;
-
-    const pairs = (currentData.pairRankings || []).filter(p => p.pair.includes(m.name));
-    if (pairs.length > 0) {
-      const topP = pairs.reduce((best, cur) => cur.score > best.score ? cur : best, pairs[0]);
-      const otherName = topP.pair[0] === m.name ? topP.pair[1] : topP.pair[0];
-      document.getElementById("focusTopSoulmate").innerText = `${otherName} (${topP.score}점, 티키타카 ${topP.replies.toLocaleString()}회)`;
-    } else {
-      document.getElementById("focusTopSoulmate").innerText = "집계 중";
-    }
-
-    const words = (m.topWords || []).slice(0, 3).map(w => `#${w.word}`).join(" ");
-    document.getElementById("focusTopWords").innerText = words || (m.signatures || []).slice(0, 3).join(", ") || "-";
-    document.getElementById("focusActiveHours").innerText = m.activeHours || "피크 타임";
-  }
-
   renderFocusFilterBar();
   renderChemistryTab();
-  renderCharacterCards();
 }
 
 function clearFocusMember() {
   focusedMemberId = null;
-  const banner = document.getElementById("focusBanner");
-  if (banner) banner.classList.add("hidden");
   renderFocusFilterBar();
   renderChemistryTab();
-  renderCharacterCards();
 }
 
 // 탭 1: 종합 성적표 참여자 카드
@@ -333,27 +424,49 @@ function renderOverviewMembers() {
 
   currentData.members.forEach(m => {
     const card = document.createElement("div");
-    card.className = "bg-[#090e13] border border-white/[0.08] hover:border-[#f5b73d] rounded-[24px] p-5 space-y-3 cursor-pointer transition hover:-translate-y-1 shadow-[0_4px_20px_rgba(0,0,0,0.2)]";
+    card.className = "bg-[#090e13] border border-white/[0.08] hover:border-[#f5b73d] rounded-[28px] p-5 sm:p-6 space-y-4 cursor-pointer transition hover:-translate-y-1 shadow-[0_4px_24px_rgba(0,0,0,0.25)] flex flex-col justify-between";
     card.onclick = () => {
       selectFocusMember(m.id || m.name);
-      switchTab("tabCharacters");
+      openReportDetail("tabCharacters");
     };
     card.innerHTML = `
-      <div class="flex items-center justify-between">
-        <span class="text-3xl">${m.avatar}</span>
-        ${getCtiBadgeHtml(m.cti)}
+      <div class="space-y-3">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <span class="text-3xl sm:text-4xl w-12 h-12 rounded-2xl bg-[#111820] flex items-center justify-center border border-white/[0.06] shadow-sm">${m.avatar}</span>
+            <div>
+              <h5 class="text-base sm:text-lg font-black text-[#f6f8fa] flex items-center gap-2">${m.name}</h5>
+              <p class="text-xs text-[#848c96] mt-0.5">${m.title}</p>
+            </div>
+          </div>
+          <div>
+            ${getCtiBadgeHtml(m.cti)}
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2 bg-[#030708] p-3 rounded-2xl border border-white/[0.06] text-center">
+          <div>
+            <span class="text-[10px] text-[#848c96]">발화 점유율</span>
+            <p class="text-xs sm:text-sm font-bold text-[#f6f8fa] mt-0.5">${m.msgRatio}%</p>
+          </div>
+          <div>
+            <span class="text-[10px] text-[#848c96]">평균 글자수</span>
+            <p class="text-xs sm:text-sm font-bold text-[#f6f8fa] mt-0.5">${m.avgLen}자</p>
+          </div>
+          <div>
+            <span class="text-[10px] text-[#848c96]">대화 선제개시</span>
+            <p class="text-xs sm:text-sm font-bold text-[#f5b73d] mt-0.5">${m.starters}회</p>
+          </div>
+        </div>
       </div>
-      <div>
-        <h5 class="text-base font-bold text-[#f6f8fa] flex items-center gap-1.5">${m.name}</h5>
-        <p class="text-xs text-[#848c96]">${m.title}</p>
-      </div>
-      <div class="space-y-1 pt-1 border-t border-white/[0.08] text-[11px] text-[#848c96]">
-        <div class="flex justify-between"><span>발화량</span><strong class="text-[#f6f8fa]">${m.totalMsgs.toLocaleString()}건 (${m.msgRatio}%)</strong></div>
-        <div class="flex justify-between"><span>호흡</span><strong class="text-[#f6f8fa]">평균 ${m.avgLen}자</strong></div>
-        <div class="flex justify-between"><span>대화 개시</span><strong class="text-[#f5b73d]">${m.starters}회</strong></div>
-      </div>
-      <div class="pt-1">
-        <span class="inline-block text-[11px] px-2.5 py-1 rounded-full bg-[#111820] text-[#f6f8fa] border border-white/[0.08] font-medium">${m.trophy}</span>
+
+      <div class="flex items-center justify-between pt-1 border-t border-white/[0.06]">
+        <span class="text-[11px] px-3 py-1 rounded-full bg-[#111820] text-[#f6f8fa] border border-white/[0.08] font-medium truncate max-w-[200px]">
+          ${m.trophy}
+        </span>
+        <span class="text-xs font-bold text-[#f5b73d] flex items-center gap-1 hover:underline">
+          캐릭터 카드 <i class="fa-solid fa-arrow-right text-[10px]"></i>
+        </span>
       </div>
     `;
     container.appendChild(card);
@@ -375,63 +488,120 @@ function renderStatGauge(label, value, colorClass) {
   `;
 }
 
-// 탭 2: 인물별 CTI 팩폭 카드
-function renderCharacterCards() {
-  const container = document.getElementById("characterCardsContainer");
-  if (!container) return;
-  container.innerHTML = "";
+// 탭 2: 인물별 CTI 팩폭 카드 (카드 덱 넘기기 시스템)
+let currentCharDeckIndex = 0;
 
-  Object.keys(radarCharts).forEach(key => {
-    if (radarCharts[key]) radarCharts[key].destroy();
-  });
-  radarCharts = {};
+function renderCharacterCards(resetToMe = false) {
+  if (!currentData || !currentData.members || currentData.members.length === 0) return;
 
-  currentData.members.forEach((m, idx) => {
-    const isMe = Boolean(focusedMemberId && (m.id === focusedMemberId || m.name === focusedMemberId));
-    const card = document.createElement("div");
-    card.id = `charCard-${m.id}`;
-    card.className = isMe 
-      ? "bg-[#090e13] border-2 border-[#f5b73d] rounded-[32px] p-6 space-y-5 shadow-[0_4px_24px_rgba(0,0,0,0.3)] relative overflow-hidden" 
-      : "bg-[#090e13] border border-white/[0.08] rounded-[32px] p-6 space-y-5 shadow-[0_4px_20px_rgba(0,0,0,0.2)] relative overflow-hidden";
-    
-    const quotesHtml = (m.quotes || []).map(q => `
-      <li class="flex items-start gap-2 text-xs text-[#848c96] italic">
-        <span class="text-[#f5b73d]">"</span>
-        <span>${q}</span>
-        <span class="text-[#f5b73d]">"</span>
-      </li>
-    `).join("");
+  // 명시적으로 나에게 맞추라고 한 경우에만 포커스 인덱스로 맞춤
+  if (resetToMe && focusedMemberId) {
+    const fIdx = currentData.members.findIndex(m => m.id === focusedMemberId || m.name === focusedMemberId);
+    if (fIdx !== -1) currentCharDeckIndex = fIdx;
+  }
 
-    const signaturesHtml = (m.signatures || []).map(s => `
-      <span class="px-2.5 py-1 rounded-full bg-[#111820] border border-white/[0.08] text-[#f6f8fa] text-[11px] font-mono">#${s}</span>
-    `).join("");
+  if (currentCharDeckIndex < 0 || currentCharDeckIndex >= currentData.members.length) {
+    currentCharDeckIndex = 0;
+  }
 
-    card.innerHTML = `
+  // 상단 멤버 아바타 셀렉터 렌더링
+  const memberListEl = document.getElementById("charDeckMemberList");
+  if (memberListEl) {
+    memberListEl.innerHTML = "";
+    currentData.members.forEach((m, idx) => {
+      const isSelected = idx === currentCharDeckIndex;
+      const isMe = Boolean(focusedMemberId && (m.id === focusedMemberId || m.name === focusedMemberId));
+      
+      const btn = document.createElement("button");
+      btn.className = `px-3.5 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-2 shrink-0 border ${
+        isSelected 
+          ? 'bg-[#f5b73d] text-[#030708] border-[#f5b73d] shadow-md scale-105' 
+          : 'bg-[#111820] text-[#f6f8fa] hover:bg-[#16202a] border-white/[0.08]'
+      }`;
+      btn.innerHTML = `
+        <span class="text-sm">${m.avatar}</span>
+        <span>${m.name}</span>
+        ${isMe ? '<i class="fa-solid fa-crown text-[10px] text-amber-900"></i>' : ''}
+      `;
+      btn.onclick = () => selectCharCardIndex(idx);
+      memberListEl.appendChild(btn);
+    });
+  }
+
+  // 카운터 텍스트 업데이트
+  const counterEl = document.getElementById("charDeckCounter");
+  if (counterEl) {
+    counterEl.innerText = `${currentCharDeckIndex + 1} / ${currentData.members.length}`;
+  }
+
+  // 1장의 상세 카드 렌더링
+  renderCurrentDeckCard();
+}
+
+function selectCharCardIndex(index) {
+  if (!currentData || !currentData.members || currentData.members.length === 0) return;
+  const len = currentData.members.length;
+  currentCharDeckIndex = ((index % len) + len) % len;
+  renderCharacterCards(false);
+}
+
+function prevCharCard() {
+  selectCharCardIndex(currentCharDeckIndex - 1);
+}
+
+function nextCharCard() {
+  selectCharCardIndex(currentCharDeckIndex + 1);
+}
+
+function renderCurrentDeckCard() {
+  const container = document.getElementById("characterCardDeckView");
+  if (!container || !currentData || !currentData.members) return;
+
+  const m = currentData.members[currentCharDeckIndex];
+  if (!m) return;
+
+  const isMe = Boolean(focusedMemberId && (m.id === focusedMemberId || m.name === focusedMemberId));
+
+  const quotesHtml = (m.quotes || []).map(q => `
+    <li class="flex items-start gap-2 text-xs text-[#848c96] italic">
+      <span class="text-[#f5b73d]">"</span>
+      <span>${q}</span>
+      <span class="text-[#f5b73d]">"</span>
+    </li>
+  `).join("");
+
+  const signaturesHtml = (m.signatures || []).map(s => `
+    <span class="px-2.5 py-1 rounded-full bg-[#111820] border border-white/[0.08] text-[#f6f8fa] text-[11px] font-mono">#${s}</span>
+  `).join("");
+
+  container.innerHTML = `
+    <div class="bg-[#090e13] ${isMe ? 'border-2 border-[#f5b73d]' : 'border border-white/[0.08]'} rounded-[36px] p-6 sm:p-7 space-y-6 shadow-[0_8px_32px_rgba(0,0,0,0.4)] relative overflow-hidden transition-all duration-300">
+      <!-- 카드 상단 프로필 -->
       <div class="flex items-start justify-between gap-4">
-        <div class="flex items-center gap-3">
-          <div class="w-14 h-14 rounded-2xl bg-[#111820] border border-white/[0.08] flex items-center justify-center text-3xl">
+        <div class="flex items-center gap-3.5">
+          <div class="w-16 h-16 rounded-2xl bg-[#111820] border border-white/[0.08] flex items-center justify-center text-3xl shadow-sm">
             ${m.avatar}
           </div>
           <div>
-            <div class="flex items-center gap-2">
-              <h4 class="text-xl font-black text-[#f6f8fa] flex items-center gap-2">
+            <div class="flex items-center gap-2 flex-wrap">
+              <h4 class="text-xl sm:text-2xl font-black text-[#f6f8fa] flex items-center gap-2">
                 <span>${m.name}</span>
                 ${isMe ? '<span class="text-xs px-2.5 py-0.5 rounded-full bg-[#f5b73d] text-white font-black flex items-center gap-1 shadow-sm"><i class="fa-solid fa-crown text-[10px]"></i> 내 카드</span>' : ''}
               </h4>
               ${getCtiBadgeHtml(m.cti)}
             </div>
-            <p class="text-xs text-[#f5b73d] font-semibold mt-0.5">${m.title}</p>
+            <p class="text-xs font-bold text-[#f5b73d] mt-1">${m.title}</p>
           </div>
         </div>
-        <span class="text-xs font-bold text-[#848c96] bg-[#111820] border border-white/[0.08] px-2.5 py-1 rounded-full">
-          점유율 ${m.msgRatio}%
+        <span class="text-xs font-mono font-bold text-[#848c96] bg-[#111820] border border-white/[0.08] px-3 py-1 rounded-full">
+          대화 지분 ${m.msgRatio}%
         </span>
       </div>
 
       <!-- 레이더 차트 및 5대 지표 수치 진단 섹션 -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-center bg-[#030708] p-4 rounded-2xl border border-white/[0.08]">
-        <div class="h-52 relative flex items-center justify-center">
-          <canvas id="radar-${idx}"></canvas>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-center bg-[#030708] p-4 sm:p-5 rounded-2xl border border-white/[0.08]">
+        <div class="h-56 relative flex items-center justify-center">
+          <canvas id="activeRadarChart"></canvas>
         </div>
         <div class="space-y-2.5">
           <div class="flex items-center justify-between pb-1 border-b border-[#111820]">
@@ -448,44 +618,47 @@ function renderCharacterCards() {
         </div>
       </div>
 
-      <!-- 기본 대화 집계 통계 -->
+      <!-- 기본 대화 집계 통계 4칸 -->
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
-        <div class="bg-[#030708] p-2.5 rounded-xl border border-[#111820]">
+        <div class="bg-[#030708] p-3 rounded-xl border border-[#111820]">
           <span class="text-[11px] text-[#848c96] block mb-0.5">총 발화량</span>
-          <strong class="text-[#f6f8fa] font-mono">${m.totalMsgs.toLocaleString()}건</strong>
+          <strong class="text-sm text-[#f6f8fa] font-mono">${m.totalMsgs.toLocaleString()}건</strong>
         </div>
-        <div class="bg-[#030708] p-2.5 rounded-xl border border-[#111820]">
+        <div class="bg-[#030708] p-3 rounded-xl border border-[#111820]">
           <span class="text-[11px] text-[#848c96] block mb-0.5">평균 글자 수</span>
-          <strong class="text-[#f6f8fa] font-mono">${m.avgLen}자</strong>
+          <strong class="text-sm text-[#f6f8fa] font-mono">${m.avgLen}자</strong>
         </div>
-        <div class="bg-[#030708] p-2.5 rounded-xl border border-[#111820]">
+        <div class="bg-[#030708] p-3 rounded-xl border border-[#111820]">
           <span class="text-[11px] text-[#848c96] block mb-0.5">대화 점화 (선톡)</span>
-          <strong class="text-[#f5b73d] font-mono">${m.starters}회</strong>
+          <strong class="text-sm text-[#f5b73d] font-mono">${m.starters}회</strong>
         </div>
-        <div class="bg-[#030708] p-2.5 rounded-xl border border-[#111820]">
-          <span class="text-[11px] text-[#848c96] block mb-0.5">웃음/질문</span>
-          <strong class="text-[#f6f8fa] font-mono">${m.laughs.toLocaleString()} / ${m.questions}</strong>
+        <div class="bg-[#030708] p-3 rounded-xl border border-[#111820]">
+          <span class="text-[11px] text-[#848c96] block mb-0.5">웃음 / 질문</span>
+          <strong class="text-sm text-[#f6f8fa] font-mono">${m.laughs.toLocaleString()} / ${m.questions}</strong>
         </div>
       </div>
 
+      <!-- 시그니처 키워드 -->
       <div class="space-y-1.5">
         <p class="text-xs font-bold text-[#848c96]">시그니처 키워드</p>
         <div class="flex flex-wrap gap-1.5">${signaturesHtml}</div>
       </div>
 
-      <div class="space-y-2 bg-[#030708] p-3 rounded-2xl border border-white/[0.08]">
+      <!-- 박제된 대표 대사 -->
+      <div class="space-y-2 bg-[#030708] p-3.5 rounded-2xl border border-white/[0.08]">
         <p class="text-xs font-bold text-[#848c96] flex items-center gap-1.5">
           <i class="fa-solid fa-quote-left text-[#f5b73d]"></i> 박제된 대표 대사
         </p>
         <ul class="space-y-1.5">${quotesHtml}</ul>
       </div>
 
-      <div class="bg-[rgba(245, 183, 61,0.08)] border border-[rgba(245, 183, 61,0.3)] rounded-2xl p-3.5 space-y-1.5">
+      <!-- 뼈 때리는 팩폭 피드백 -->
+      <div class="bg-[rgba(245, 183, 61,0.08)] border border-[rgba(245, 183, 61,0.3)] rounded-2xl p-4 space-y-2">
         <div class="flex items-center gap-2 text-[#f5b73d] text-xs font-bold">
           <i class="fa-solid fa-skull-crossbones"></i> 뼈 때리는 팩폭 피드백
         </div>
-        <p class="text-xs text-[#f6f8fa] leading-relaxed font-medium">${m.savage}</p>
-        <div class="pt-1 text-[11px] text-[#848c96] flex items-center gap-1">
+        <p class="text-xs sm:text-sm text-[#f6f8fa] leading-relaxed font-medium">${m.savage}</p>
+        <div class="pt-1 text-[11px] text-[#848c96] flex items-center gap-1.5 border-t border-white/[0.05]">
           <i class="fa-solid fa-lightbulb text-[#f5b73d]"></i> 조언: ${m.advice}
         </div>
       </div>
@@ -495,85 +668,90 @@ function renderCharacterCards() {
           ${m.trophy}
         </span>
       </div>
-    `;
-    container.appendChild(card);
-  });
+    </div>
+  `;
 
-  setTimeout(renderAllRadarCharts, 50);
+  // 레이더 차트 렌더링
+  setTimeout(renderActiveRadarChart, 30);
 }
 
-// 레이더 차트 렌더링 (순서 및 스케일 0~100 일치 보정)
-function renderAllRadarCharts() {
+// 현재 활성화된 1장의 카드에 레이더 차트 렌더링
+function renderActiveRadarChart() {
   if (!currentData || !currentData.members) return;
+  const m = currentData.members[currentCharDeckIndex];
+  if (!m) return;
 
-  currentData.members.forEach((m, idx) => {
-    const canvas = document.getElementById(`radar-${idx}`);
-    if (!canvas) return;
+  const canvas = document.getElementById("activeRadarChart");
+  if (!canvas) return;
 
-    if (radarCharts[idx]) radarCharts[idx].destroy();
+  if (radarCharts['active']) {
+    radarCharts['active'].destroy();
+  }
 
-    const ctx = canvas.getContext("2d");
-    radarCharts[idx] = new Chart(ctx, {
-      type: "radar",
-      data: {
-        labels: ["점화력", "문장길이", "감정/드립", "직진/도발", "유머감각"],
-        datasets: [{
-          label: m.name,
-          data: [
-            Number(m.radar.initiative) || 0,
-            Number(m.radar.length) || 0,
-            Number(m.radar.emotion) || 0,
-            Number(m.radar.assertiveness) || 0,
-            Number(m.radar.humor) || 0
-          ],
-          backgroundColor: "rgba(245, 183, 61, 0.28)",
-          borderColor: "#f5b73d",
-          borderWidth: 2,
-          pointBackgroundColor: "#f5b73d",
-          pointBorderColor: "#f6f8fa",
-          pointBorderWidth: 1.5,
-          pointRadius: 3.5,
-          pointHoverRadius: 6
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              label: (c) => ` ${c.label}: ${c.raw}점`
-            }
+  const ctx = canvas.getContext("2d");
+  radarCharts['active'] = new Chart(ctx, {
+    type: "radar",
+    data: {
+      labels: ["점화력", "문장길이", "감정/드립", "직진/도발", "유머감각"],
+      datasets: [{
+        label: m.name,
+        data: [
+          Number(m.radar.initiative) || 0,
+          Number(m.radar.length) || 0,
+          Number(m.radar.emotion) || 0,
+          Number(m.radar.assertiveness) || 0,
+          Number(m.radar.humor) || 0
+        ],
+        backgroundColor: "rgba(245, 183, 61, 0.28)",
+        borderColor: "#f5b73d",
+        borderWidth: 2,
+        pointBackgroundColor: "#f5b73d",
+        pointBorderColor: "#f6f8fa",
+        pointBorderWidth: 1.5,
+        pointRadius: 4,
+        pointHoverRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (c) => ` ${c.label}: ${c.raw}점`
           }
-        },
-        scales: {
-          r: {
-            min: 0,
-            max: 100,
-            beginAtZero: true,
-            angleLines: { color: "rgba(255, 255, 255, 0.12)" },
-            grid: { color: "rgba(255, 255, 255, 0.10)" },
-            pointLabels: {
-              font: { size: 11, family: "Pretendard Variable", weight: "600" },
-              color: "#848c96"
-            },
-            ticks: {
-              display: false,
-              stepSize: 20
-            }
+        }
+      },
+      scales: {
+        r: {
+          min: 0,
+          max: 100,
+          ticks: { display: false, stepSize: 20 },
+          grid: { color: "rgba(255, 255, 255, 0.08)" },
+          angleLines: { color: "rgba(255, 255, 255, 0.08)" },
+          pointLabels: {
+            color: "#848c96",
+            font: { size: 11, family: "Pretendard Variable", weight: "bold" }
           }
         }
       }
-    });
+    }
   });
+}
+
+function renderAllRadarCharts() {
+  renderActiveRadarChart();
 }
 
 // 탭 3: 케미 & 궁합 탭
 function renderChemistryTab() {
-  const container = document.getElementById("pairRankingsContainer");
-  if (!container) return;
-  container.innerHTML = "";
+  const showcaseContainer = document.getElementById("pairTopShowcaseContainer");
+  const listContainer = document.getElementById("pairRankingsContainer");
+  if (!showcaseContainer || !listContainer) return;
+  
+  showcaseContainer.innerHTML = "";
+  listContainer.innerHTML = "";
 
   let pairs = (currentData.pairRankings || []);
   const focusedMemberObj = currentData.members.find(x => x.id === focusedMemberId || x.name === focusedMemberId);
@@ -585,12 +763,65 @@ function renderChemistryTab() {
     pairs = [...focusedPairs, ...otherPairs];
   }
 
-  pairs.forEach(p => {
+  // 상위 3위 분리
+  const top3Pairs = pairs.slice(0, 3);
+  const remainPairs = pairs.slice(3);
+
+  const medalStyles = [
+    { rankBadge: "🥇 1위 영혼의 단짝", border: "border-[#f5b73d]", bg: "bg-[#090e13]", glow: "shadow-[0_8px_30px_rgba(245,183,61,0.18)]" },
+    { rankBadge: "🥈 2위 찰떡 콤비", border: "border-slate-300", bg: "bg-[#090e13]", glow: "shadow-[0_8px_30px_rgba(203,213,225,0.12)]" },
+    { rankBadge: "🥉 3위 티키타카 메이트", border: "border-amber-700", bg: "bg-[#090e13]", glow: "shadow-[0_8px_30px_rgba(180,83,9,0.12)]" }
+  ];
+
+  top3Pairs.forEach((p, idx) => {
+    const style = medalStyles[idx] || medalStyles[2];
     const isMyPair = Boolean(targetName && p.pair.includes(targetName));
     const card = document.createElement("div");
-    card.className = isMyPair 
-      ? "bg-[#090e13] border-2 border-[#f5b73d] rounded-[24px] p-5 space-y-3 shadow-[0_4px_24px_rgba(0,0,0,0.3)] transition relative" 
-      : "bg-[#090e13] border border-white/[0.08] rounded-[24px] p-5 space-y-3 hover:border-[#4A4A45] transition";
+    card.className = `${style.bg} ${style.border} ${style.glow} border rounded-[32px] p-5 space-y-4 relative flex flex-col justify-between`;
+    
+    card.innerHTML = `
+      <div class="space-y-3">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-black px-3 py-1 rounded-full bg-[#111820] text-[#f6f8fa] border border-white/[0.08]">
+            ${style.rankBadge}
+          </span>
+          <span class="text-xs font-black px-2.5 py-0.5 rounded-full bg-[#f5b73d] text-[#030708]">
+            ${p.score}점 (${p.grade}급)
+          </span>
+        </div>
+
+        <div class="text-center py-2 space-y-1">
+          <div class="text-2xl font-black text-[#f6f8fa] flex items-center justify-center gap-2">
+            <span>${p.pair[0]}</span>
+            <span class="text-[#f5b73d] text-lg">❤️</span>
+            <span>${p.pair[1]}</span>
+          </div>
+          <div class="flex items-center justify-center gap-2">
+            ${getCtiBadgeHtml(p.types[0])}
+            <span class="text-xs text-[#848c96] font-bold">&</span>
+            ${getCtiBadgeHtml(p.types[1])}
+          </div>
+        </div>
+
+        <div class="bg-[#030708] p-3 rounded-2xl border border-white/[0.06] text-center">
+          <p class="text-xs font-bold text-[#f5b73d]">${p.badge}</p>
+          <p class="text-[11px] text-[#848c96] mt-1">${p.summary}</p>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between pt-2 border-t border-white/[0.06] text-[11px] font-mono text-[#848c96]">
+        <span>티키타카: <strong class="text-[#f6f8fa]">${p.replies.toLocaleString()}회</strong></span>
+        <span>스트릭: <strong class="text-[#f6f8fa]">${p.streaks}회</strong></span>
+      </div>
+    `;
+    showcaseContainer.appendChild(card);
+  });
+
+  // 나머지 순위는 2열 그리드로 컴팩트하게 노출
+  remainPairs.forEach(p => {
+    const isMyPair = Boolean(targetName && p.pair.includes(targetName));
+    const card = document.createElement("div");
+    card.className = "bg-[#090e13] border border-white/[0.08] hover:border-white/[0.2] rounded-[24px] p-4 space-y-3 transition";
 
     let gradeColor = "text-[#f5b73d] bg-[rgba(234,164,58,0.15)] border-[rgba(234,164,58,0.4)]";
     if (p.grade.includes("SS")) gradeColor = "text-[#f5b73d] bg-[rgba(245, 183, 61,0.15)] border-[rgba(245, 183, 61,0.4)]";
@@ -598,40 +829,23 @@ function renderChemistryTab() {
     else if (p.grade === "B+") gradeColor = "text-[#38bdf8] bg-[rgba(56, 189, 248,0.15)] border-[rgba(56, 189, 248,0.4)]";
 
     card.innerHTML = `
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div class="flex items-center gap-3">
-          <span class="w-7 h-7 rounded-full bg-[#111820] border border-white/[0.08] text-[#f6f8fa] flex items-center justify-center font-black text-sm">
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2.5">
+          <span class="w-6 h-6 rounded-full bg-[#111820] text-[#848c96] flex items-center justify-center font-bold text-xs">
             ${p.rank}
           </span>
-          <div>
-            <h4 class="text-base font-black text-[#f6f8fa] flex items-center gap-2">
-              <span>${p.pair[0]}</span>
-              ${getCtiBadgeHtml(p.types[0])}
-              <span class="text-[#848c96]">↔</span>
-              <span>${p.pair[1]}</span>
-              ${getCtiBadgeHtml(p.types[1])}
-            </h4>
-          </div>
+          <span class="text-sm font-bold text-[#f6f8fa]">${p.pair[0]} ↔ ${p.pair[1]}</span>
         </div>
-        <div class="flex items-center gap-2">
-          ${isMyPair ? '<span class="px-2.5 py-1 rounded-full text-xs font-black bg-[#f5b73d] text-white flex items-center gap-1 shadow-sm"><i class="fa-solid fa-star text-[10px]"></i> 나와의 케미</span>' : ''}
-          <span class="px-2.5 py-1 rounded-full text-xs font-black border ${gradeColor}">${p.grade}급 (${p.score}점)</span>
-          <span class="text-xs font-bold text-[#f6f8fa] bg-[#111820] border border-white/[0.08] px-3 py-1 rounded-full">${p.badge}</span>
+        <div class="flex items-center gap-1.5">
+          <span class="px-2 py-0.5 rounded-full text-[11px] font-bold border ${gradeColor}">${p.grade}급 (${p.score}점)</span>
         </div>
       </div>
-
-      <div class="bg-[#030708] p-3 rounded-xl border border-white/[0.08] flex flex-wrap items-center justify-between gap-2 text-xs">
-        <p class="text-[#f6f8fa] font-medium">${p.summary}</p>
-        <div class="flex gap-3 text-[#848c96] text-[11px] shrink-0 font-mono">
-          <span>답장: <strong class="text-[#f5b73d]">${p.replies.toLocaleString()}건</strong></span>
-          <span>1:1 스트릭: <strong class="text-[#f6f8fa]">${p.streaks}회</strong></span>
-          <span>호출: <strong class="text-[#f6f8fa]">${p.mentions}회</strong></span>
-        </div>
+      <div class="bg-[#030708] p-2.5 rounded-xl border border-white/[0.06] flex items-center justify-between text-[11px]">
+        <span class="text-[#848c96] truncate max-w-[200px]">${p.summary}</span>
+        <span class="text-[#f5b73d] font-mono shrink-0">${p.replies.toLocaleString()}건</span>
       </div>
-
-      <p class="text-xs text-[#848c96] leading-relaxed">${p.details || ''}</p>
     `;
-    container.appendChild(card);
+    listContainer.appendChild(card);
   });
 
   populateSimulator();

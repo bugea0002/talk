@@ -205,7 +205,9 @@ window.KAKAO_PARSER = {
         words: {},
         validQuoteCount: 0,
         quotesPool: [],      // 저수지 샘플링 (전체 기간 균등 추출)
-        recentQuotes: []     // 최근 대사 버퍼 (최근 흐름 반영)
+        recentQuotes: [],    // 최근 대사 버퍼 (최근 흐름 반영)
+        replyDiffs: [],      // 직전 다른 사람 말에 답장하기까지 걸린 실제 시간(분)
+        mentionCount: 0      // 다른 사람들에게 불린(멘션된) 실제 횟수
       };
     });
 
@@ -310,10 +312,13 @@ window.KAKAO_PARSER = {
         if (otherName !== curr.sender && (text.includes(otherName) || text.includes(`@${otherName}`))) {
           const pKey = [curr.sender, otherName].sort().join(" ↔ ");
           pairMentions[pKey] = (pairMentions[pKey] || 0) + 1;
+          if (memberStats[otherName]) {
+            memberStats[otherName].mentionCount++;
+          }
         }
       }
 
-      // 점화력: 날짜 변경 또는 90분 이상 대화 단절 후 첫 대화 개시자
+      // 점화력 & 답장 반응 속도 계산
       if (!prevMsg) {
         st.starters++;
       } else {
@@ -321,7 +326,12 @@ window.KAKAO_PARSER = {
           st.starters++;
         } else {
           const diffMin = (curr.hour * 60 + curr.minute) - (prevMsg.hour * 60 + prevMsg.minute);
-          if (diffMin >= 90 || diffMin < 0) st.starters++;
+          if (diffMin >= 90 || diffMin < 0) {
+            st.starters++;
+          } else if (prevMsg.sender !== curr.sender && diffMin >= 0 && diffMin <= 60) {
+            // 직전 발화자가 다른 사람이고 60분 이내에 답변을 남겼을 때의 실제 반응 속도
+            st.replyDiffs.push(diffMin);
+          }
         }
       }
 
@@ -467,6 +477,13 @@ window.KAKAO_PARSER = {
       });
       if (sigs.length < 3) sigs.push(ctiCode);
 
+      // 실제 평균 답장 속도 (분)
+      let calculatedReplySpeed = 15;
+      if (st.replyDiffs && st.replyDiffs.length > 0) {
+        const sumDiff = st.replyDiffs.reduce((a, b) => a + b, 0);
+        calculatedReplySpeed = Math.max(1, Math.round(sumDiff / st.replyDiffs.length));
+      }
+
       return {
         id: s,
         name: s,
@@ -487,6 +504,8 @@ window.KAKAO_PARSER = {
         topWords: topWords,
         owlRatio: owlRatio,
         earlyRatio: earlyRatio,
+        replySpeed: calculatedReplySpeed,
+        mentionCount: st.mentionCount,
         timePersona: timePersona,
         radar: {
           initiative: initiativeVal,
