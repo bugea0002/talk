@@ -127,9 +127,17 @@
         </div>
       </div>
 
-      <div class="mt-4 flex flex-wrap items-center justify-center gap-6 text-xs text-[#848c96]">
-        <span class="flex items-center gap-1.5"><i class="fa-brands fa-windows text-[#f5b73d]"></i> PC 카톡: 메뉴(≡) ➔ 대화 내용 ➔ 대화 내보내기</span>
-        <span class="flex items-center gap-1.5"><i class="fa-solid fa-mobile-screen text-[#f5b73d]"></i> 모바일: 메뉴(≡) ➔ 설정(⚙️) ➔ 대화 내용 내보내기</span>
+      <div class="mt-4 flex flex-wrap items-center justify-center gap-3 sm:gap-6 text-xs text-[#848c96]">
+        <button type="button" onclick="openGuideModal('mobile')" class="px-3.5 py-1.5 rounded-full bg-[#111820] hover:bg-[#16202a] text-[#f6f8fa] hover:text-[#f5b73d] border border-white/[0.08] transition flex items-center gap-1.5">
+          <i class="fa-solid fa-mobile-screen text-[#f5b73d]"></i>
+          <span>모바일 대화 내보내는 방법</span>
+          <i class="fa-solid fa-chevron-right text-[10px] text-[#848c96]"></i>
+        </button>
+        <button type="button" onclick="openGuideModal('pc')" class="px-3.5 py-1.5 rounded-full bg-[#111820] hover:bg-[#16202a] text-[#f6f8fa] hover:text-[#f5b73d] border border-white/[0.08] transition flex items-center gap-1.5">
+          <i class="fa-brands fa-windows text-[#f5b73d]"></i>
+          <span>PC 대화 내보내는 방법</span>
+          <i class="fa-solid fa-chevron-right text-[10px] text-[#848c96]"></i>
+        </button>
       </div>
     </section>
 
@@ -665,6 +673,48 @@
         </button>
         <button onclick="downloadShareCard()" class="px-5 py-2.5 bg-[#f6f8fa] hover:bg-[#e2e8f0] text-[#030708] text-xs font-black rounded-[20px] transition flex items-center gap-2 shadow-sm">
           <i class="fa-solid fa-download"></i> <span>이미지(PNG) 다운로드</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 대화 내용 내보내기 가이드 모달 -->
+  <div id="guideModal" class="fixed inset-0 bg-[#030708]/85 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-[#090e13] border border-white/[0.12] rounded-[32px] max-w-2xl w-full max-h-[90vh] flex flex-col shadow-[0_20px_60px_rgba(0,0,0,0.8)] overflow-hidden">
+      <!-- 모달 헤더 -->
+      <div class="p-5 sm:p-6 border-b border-white/[0.08] flex items-center justify-between">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-lg">💡</span>
+            <h3 class="text-base sm:text-lg font-black text-[#f6f8fa]">카카오톡 대화 내용 내보내는 방법</h3>
+          </div>
+          <p class="text-xs text-[#848c96] mt-0.5">내보낸 텍스트 파일(.txt)을 분석창에 올려주세요</p>
+        </div>
+        <button onclick="closeGuideModal()" class="w-8 h-8 rounded-full bg-[#111820] hover:bg-[#16202a] text-[#848c96] hover:text-[#f6f8fa] flex items-center justify-center transition border border-white/[0.08]">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- 플랫폼 탭 전환 -->
+      <div class="px-5 sm:px-6 pt-4 pb-2 border-b border-white/[0.08] bg-[#0c1218]/50 flex items-center gap-2">
+        <button id="guideTabMobile" onclick="switchGuideTab('mobile')" class="flex-1 py-2.5 px-4 rounded-2xl font-bold text-xs transition flex items-center justify-center gap-2 bg-[#f5b73d] text-[#030708] shadow-sm">
+          <i class="fa-solid fa-mobile-screen"></i> 모바일 카톡 (4단계)
+        </button>
+        <button id="guideTabPc" onclick="switchGuideTab('pc')" class="flex-1 py-2.5 px-4 rounded-2xl font-semibold text-xs transition flex items-center justify-center gap-2 bg-[#111820] text-[#848c96] hover:text-[#f6f8fa] border border-white/[0.08]">
+          <i class="fa-brands fa-windows"></i> PC 카톡 (3단계)
+        </button>
+      </div>
+
+      <!-- 모달 바디 (스크롤 영역) -->
+      <div id="guideContentContainer" class="p-5 sm:p-6 overflow-y-auto custom-scrollbar flex-1 space-y-6">
+        <!-- JS로 동적 렌더링 -->
+      </div>
+
+      <!-- 모달 푸터 -->
+      <div class="p-4 sm:p-5 border-t border-white/[0.08] bg-[#0c1218]/50 flex items-center justify-between text-xs text-[#848c96]">
+        <span class="flex items-center gap-1.5"><i class="fa-solid fa-shield-halved text-emerald-400"></i> 추출된 대화는 서버에 저장되지 않고 브라우저에서만 분석됩니다.</span>
+        <button onclick="closeGuideModal()" class="px-5 py-2 bg-[#f6f8fa] hover:bg-[#e2e8f0] text-[#030708] font-bold rounded-[20px] transition shadow-sm">
+          확인
         </button>
       </div>
     </div>

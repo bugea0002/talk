@@ -1123,3 +1123,104 @@ function downloadShareCard() {
     alert("이미지 생성에 실패했습니다: " + err.message);
   });
 }
+
+// ==================== 대화 내보내기 방법 가이드 모달 ====================
+
+const GUIDE_STEPS = {
+  mobile: [
+    {
+      step: 1,
+      title: "단톡방 메뉴(≡) 열기",
+      desc: "대화를 분석할 카카오톡 채팅방에 들어간 뒤, 우측 상단의 메뉴(≡) 아이콘을 터치합니다.",
+      img: "images/guide/mobile_1.jpg"
+    },
+    {
+      step: 2,
+      title: "채팅방 서랍 설정(⚙️) 들어가기",
+      desc: "열린 채팅방 서랍 메뉴의 우측 상단에 위치한 톱니바퀴(⚙️) 아이콘을 터치합니다.",
+      img: "images/guide/mobile_2.jpg"
+    },
+    {
+      step: 3,
+      title: "대화 내용 내보내기 선택",
+      desc: "채팅방 설정 화면을 아래로 스크롤하여 [대화 내용 내보내기] 메뉴를 터치합니다.",
+      img: "images/guide/mobile_3.jpg"
+    },
+    {
+      step: 4,
+      title: "텍스트 메시지만 보내기",
+      desc: "[텍스트 메시지만 보내기]를 선택하여 '나에게 카톡 보내기', 이메일 전송 또는 파일 앱에 저장한 후 업로드합니다.",
+      img: "images/guide/mobile_4.jpg"
+    }
+  ],
+  pc: [
+    {
+      step: 1,
+      title: "단톡방 우측 상단 메뉴(≡) 클릭",
+      desc: "PC 카카오톡 채팅방 우측 상단의 햄버거 메뉴(≡) 버튼을 클릭합니다.",
+      img: "images/guide/pc_1.png"
+    },
+    {
+      step: 2,
+      title: "대화 내용 ➔ 대화 내보내기",
+      desc: "펼쳐진 메뉴에서 [대화 내용]에 마우스를 올린 후 [대화 내보내기]를 클릭합니다.",
+      img: "images/guide/pc_2.png"
+    },
+    {
+      step: 3,
+      title: "텍스트 파일(.txt)로 저장",
+      desc: "원하는 PC 폴더 경로에 텍스트 파일(.txt)로 저장한 뒤 본 사이트 업로드 화면으로 끌어다 놓으세요.",
+      img: "images/guide/pc_3.png"
+    }
+  ]
+};
+
+let currentGuideTab = 'mobile';
+
+function openGuideModal(tab = 'mobile') {
+  const modal = document.getElementById("guideModal");
+  if (!modal) return;
+  modal.classList.remove("hidden");
+  switchGuideTab(tab);
+}
+
+function closeGuideModal() {
+  const modal = document.getElementById("guideModal");
+  if (modal) modal.classList.add("hidden");
+}
+
+function switchGuideTab(tab) {
+  currentGuideTab = tab;
+  const tabMobile = document.getElementById("guideTabMobile");
+  const tabPc = document.getElementById("guideTabPc");
+  const container = document.getElementById("guideContentContainer");
+  if (!container) return;
+
+  if (tab === 'mobile') {
+    tabMobile.className = "flex-1 py-2.5 px-4 rounded-2xl font-bold text-xs transition flex items-center justify-center gap-2 bg-[#f5b73d] text-[#030708] shadow-sm";
+    tabPc.className = "flex-1 py-2.5 px-4 rounded-2xl font-semibold text-xs transition flex items-center justify-center gap-2 bg-[#111820] text-[#848c96] hover:text-[#f6f8fa] border border-white/[0.08]";
+  } else {
+    tabPc.className = "flex-1 py-2.5 px-4 rounded-2xl font-bold text-xs transition flex items-center justify-center gap-2 bg-[#f5b73d] text-[#030708] shadow-sm";
+    tabMobile.className = "flex-1 py-2.5 px-4 rounded-2xl font-semibold text-xs transition flex items-center justify-center gap-2 bg-[#111820] text-[#848c96] hover:text-[#f6f8fa] border border-white/[0.08]";
+  }
+
+  const steps = GUIDE_STEPS[tab] || [];
+  container.innerHTML = steps.map((item, idx) => `
+    <div class="bg-[#111820] border border-white/[0.08] rounded-2xl p-4 sm:p-5 space-y-3.5">
+      <div class="flex items-center gap-2.5">
+        <span class="w-6 h-6 rounded-full bg-[#f5b73d] text-[#030708] text-xs font-black flex items-center justify-center shadow-sm">
+          ${item.step}
+        </span>
+        <h4 class="text-sm sm:text-base font-bold text-[#f6f8fa] tracking-tight">
+          ${item.title}
+        </h4>
+      </div>
+      <p class="text-xs text-[#848c96] leading-relaxed break-keep pl-8">
+        ${item.desc}
+      </p>
+      <div class="mt-2 bg-[#090e13] rounded-xl border border-white/[0.06] overflow-hidden flex items-center justify-center p-2">
+        <img src="${item.img}" alt="${item.title}" class="max-h-[380px] w-auto object-contain rounded-lg shadow-md hover:scale-[1.01] transition-transform duration-200" loading="lazy" />
+      </div>
+    </div>
+  `).join("");
+}
