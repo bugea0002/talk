@@ -4,7 +4,8 @@ let currentData = null;
 let radarCharts = {};
 let isAnonymized = false;
 let originalDataCache = null;
-let focusedMemberId = null;
+let myMemberId = null; // '나'로 지정된 멤버 고유 ID
+let focusedMemberId = null; // 현재 상세 분석 탭에서 포커스된 멤버
 let currentShareRatio = "story";
 let activityCharts = { hourly: null, weekday: null };
 
@@ -31,6 +32,23 @@ function getCtiBadgeStyle(cti) {
     "ISTR": { bg: "rgba(71, 85, 105, 0.28)", text: "#94A3B8", border: "rgba(100, 116, 139, 0.45)" }
   };
   return styles[cti] || { bg: "rgba(255, 255, 255, 0.08)", text: "#f6f8fa", border: "rgba(255,255,255,0.08)" };
+}
+
+// CTI 캐릭터 데이터 조회 헬퍼 (전역 공유: 16개 유형 1:1 매칭 & Base64 Data URL 우선 연동)
+function getCharData(ctiCode) {
+  const code = (ctiCode || "ELFA").toUpperCase();
+  const ctiDef = (window.CTI_SYSTEM && window.CTI_SYSTEM.TYPES) ? window.CTI_SYSTEM.TYPES[code] : null;
+  const charKey = (ctiDef && ctiDef.character) ? ctiDef.character.toUpperCase() : code;
+  const base = (window.CTI_SYSTEM && window.CTI_SYSTEM.CHARACTERS && window.CTI_SYSTEM.CHARACTERS[charKey]) 
+    ? { ...window.CTI_SYSTEM.CHARACTERS[charKey] } 
+    : { id: charKey.toLowerCase(), name: "CTI 캐릭터", desc: "단톡방 성향", img: `images/characters/cutout_${charKey.toLowerCase()}.png`, color: "#f5b73d" };
+
+  if (window.CTI_AVATARS && window.CTI_AVATARS[charKey]) {
+    base.img = window.CTI_AVATARS[charKey];
+  } else if (window.CTI_AVATARS && window.CTI_AVATARS[code]) {
+    base.img = window.CTI_AVATARS[code];
+  }
+  return base;
 }
 
 // 뱃지 HTML 생성 헬퍼
@@ -314,12 +332,108 @@ function renderCurrentData() {
 
   document.getElementById("groupVibeText").innerText = currentData.groupVibe;
 
+  initMyMember();
+  renderMyProfileBanner();
   renderFocusFilterBar();
   renderOverviewMembers();
-  renderCharacterCards();
+  renderCharacterCards(true);
   renderChemistryTab();
   renderActivityTab();
   renderReportEncyclopedia();
+}
+
+// '나' 프로필 상태 관리 헬퍼
+function initMyMember() {
+  let saved = null;
+  try {
+    saved = localStorage.getItem("cti_my_member");
+  } catch(e) {}
+  if (saved && currentData && currentData.members && currentData.members.some(m => m.id === saved || m.name === saved)) {
+    myMemberId = saved;
+  } else {
+    myMemberId = null;
+  }
+}
+
+function setMyMember(memberId) {
+  if (!memberId || !currentData || !currentData.members) return;
+  myMemberId = memberId;
+  try {
+    localStorage.setItem("cti_my_member", memberId);
+  } catch(e) {}
+
+  renderMyProfileBanner();
+  updateFocusBannerCard();
+  renderFocusFilterBar();
+  renderOverviewMembers();
+  renderCharacterCards(false);
+
+  if (typeof triggerConfetti === "function") {
+    triggerConfetti();
+  }
+}
+
+function changeMyMemberPrompt() {
+  myMemberId = null;
+  try {
+    localStorage.removeItem("cti_my_member");
+  } catch(e) {}
+  renderMyProfileBanner();
+  updateFocusBannerCard();
+  renderFocusFilterBar();
+  renderOverviewMembers();
+  renderCharacterCards(false);
+}
+
+function renderMyProfileBanner() {
+  const banner = document.getElementById("myProfileBanner");
+  const statusBadge = document.getElementById("myProfileStatusBadge");
+  const titleEl = document.getElementById("myProfileTitle");
+  const container = document.getElementById("myProfileChipsContainer");
+  if (!banner || !currentData || !currentData.members) return;
+
+  const me = myMemberId ? currentData.members.find(x => (x.id === myMemberId || x.name === myMemberId)) : null;
+
+  if (me) {
+    if (statusBadge) {
+      statusBadge.className = "text-[10px] px-2.5 py-0.5 rounded-full bg-[#f5b73d] text-[#030708] font-black whitespace-nowrap shadow-sm";
+      statusBadge.innerHTML = `<i class="fa-solid fa-crown text-[9px]"></i> '나' 설정 완료`;
+    }
+    if (titleEl) {
+      titleEl.innerHTML = `이 대화방의 '나': <span class="text-[#f5b73d] font-black">${me.name}</span> <span class="text-xs text-[#848c96] font-normal">(${me.cti} • ${getCharData(me.cti).name})</span>`;
+    }
+    if (container) {
+      container.innerHTML = `
+        <div class="flex items-center gap-2">
+          <button onclick="changeMyMemberPrompt()" class="px-3 py-1.5 rounded-full text-xs font-bold bg-[#111820] hover:bg-[#16202a] text-[#848c96] hover:text-[#f6f8fa] border border-white/[0.1] transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap">
+            <i class="fa-solid fa-arrows-rotate text-[10px]"></i> <span>다른 멤버로 변경</span>
+          </button>
+        </div>
+      `;
+    }
+  } else {
+    if (statusBadge) {
+      statusBadge.className = "text-[10px] px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold whitespace-nowrap";
+      statusBadge.innerHTML = `<i class="fa-solid fa-hand-pointer text-[9px]"></i> '나'를 선택해주세요`;
+    }
+    if (titleEl) {
+      titleEl.innerText = "이 대화방에서 '나'는 누구인가요? 아래에서 본인을 클릭하세요!";
+    }
+    if (container) {
+      container.innerHTML = "";
+      currentData.members.forEach(m => {
+        const charInfo = getCharData(m.cti);
+        const btn = document.createElement("button");
+        btn.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-[#111820] hover:bg-[#f5b73d] text-[#f6f8fa] hover:text-[#030708] border border-white/[0.1] hover:border-[#f5b73d] transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-sm hover:scale-105";
+        btn.innerHTML = `
+          <img src="${charInfo.img}" class="w-4 h-4 object-contain shrink-0">
+          <span>${m.name}</span>
+        `;
+        btn.onclick = () => setMyMember(m.id || m.name);
+        container.appendChild(btn);
+      });
+    }
+  }
 }
 
 function renderFocusFilterBar() {
@@ -334,13 +448,19 @@ function renderFocusFilterBar() {
 
   currentData.members.forEach(m => {
     const isFocused = focusedMemberId === m.id || focusedMemberId === m.name;
+    const isMe = Boolean(myMemberId && (m.id === myMemberId || m.name === myMemberId));
+    const charInfo = getCharData(m.cti);
     const btn = document.createElement("button");
-    btn.className = `px-4 py-2 rounded-full text-xs font-bold transition flex items-center gap-1.5 border ${
+    btn.className = `px-3.5 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-2 border whitespace-nowrap shrink-0 ${
       isFocused 
         ? 'bg-[#f5b73d] text-[#030708] border-[#f5b73d] shadow-sm scale-105' 
         : 'bg-[#111820] text-[#f6f8fa] hover:bg-[#16202a] border-white/[0.08]'
     }`;
-    btn.innerHTML = `<span>${m.avatar}</span> <span>${m.name}</span>`;
+    btn.innerHTML = `
+      <img src="${charInfo.img}" class="w-4 h-4 object-contain shrink-0">
+      <span>${m.name}</span>
+      ${isMe ? '<i class="fa-solid fa-crown text-[10px] text-amber-400 shrink-0"></i>' : ''}
+    `;
     btn.onclick = () => selectFocusMember(m.id || m.name);
     container.appendChild(btn);
   });
@@ -353,8 +473,11 @@ function updateFocusBannerCard() {
   const m = currentData.members.find(x => x.id === focusedMemberId || x.name === focusedMemberId) || currentData.members[0];
   if (!m) return;
 
+  const charInfo = getCharData(m.cti);
   const avatarEl = document.getElementById("focusAvatar");
-  if (avatarEl) avatarEl.innerText = m.avatar;
+  if (avatarEl) {
+    avatarEl.innerHTML = `<img src="${charInfo.img}" alt="${m.name}" class="w-full h-full object-contain p-1">`;
+  }
 
   const nameEl = document.getElementById("focusName");
   if (nameEl) nameEl.innerText = m.name;
@@ -365,16 +488,46 @@ function updateFocusBannerCard() {
   const personaEl = document.getElementById("focusPersonaText");
   if (personaEl) personaEl.innerText = `${m.timePersona || '활동가'} • 전체 대화의 ${m.msgRatio}% 담당`;
 
-  const pairs = (currentData.pairRankings || []).filter(p => p.pair.includes(m.name));
-  const soulmateEl = document.getElementById("focusTopSoulmate");
-  if (soulmateEl) {
-    if (pairs.length > 0) {
-      const topP = pairs.reduce((best, cur) => cur.score > best.score ? cur : best, pairs[0]);
-      const otherName = topP.pair[0] === m.name ? topP.pair[1] : topP.pair[0];
-      soulmateEl.innerText = `${otherName} (${topP.score}점, 티키타카 ${topP.replies.toLocaleString()}회)`;
+  // '나' 액션 버튼 렌더링
+  const meActionEl = document.getElementById("focusMeActionContainer");
+  if (meActionEl) {
+    const isMe = Boolean(myMemberId && (m.id === myMemberId || m.name === myMemberId));
+    if (isMe) {
+      meActionEl.innerHTML = `
+        <span class="text-xs px-3 py-1.5 rounded-full bg-[#f5b73d]/20 text-[#f5b73d] border border-[#f5b73d]/50 font-black flex items-center gap-1.5 shadow-sm whitespace-nowrap">
+          <i class="fa-solid fa-crown text-[11px] text-[#f5b73d]"></i> 내 프로필
+        </span>
+      `;
     } else {
-      soulmateEl.innerText = "단짝 데이터 집계 중";
+      meActionEl.innerHTML = `
+        <button onclick="setMyMember('${m.id || m.name}')" class="text-xs px-3 py-1.5 rounded-full bg-[#111820] hover:bg-[#f5b73d] text-[#848c96] hover:text-[#030708] border border-white/[0.1] font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap">
+          <i class="fa-solid fa-user-check text-[11px]"></i> 이 멤버를 '나'로 지정
+        </button>
+      `;
     }
+  }
+
+  const pairs = (currentData.pairRankings || []).filter(p => p.pair.includes(m.name));
+  const soulmateNameEl = document.getElementById("focusTopSoulmateName");
+  const soulmateScoreEl = document.getElementById("focusTopSoulmateScore");
+  const soulmateSubEl = document.getElementById("focusTopSoulmateSub");
+  const soulmateLegacyEl = document.getElementById("focusTopSoulmate");
+
+  if (pairs.length > 0) {
+    const topP = pairs.reduce((best, cur) => cur.score > best.score ? cur : best, pairs[0]);
+    const otherName = topP.pair[0] === m.name ? topP.pair[1] : topP.pair[0];
+    if (soulmateNameEl) soulmateNameEl.innerText = otherName;
+    if (soulmateScoreEl) {
+      soulmateScoreEl.innerText = `${topP.score}점 (${topP.grade || 'A'}급)`;
+      soulmateScoreEl.classList.remove("hidden");
+    }
+    if (soulmateSubEl) soulmateSubEl.innerText = `티키타카 ${topP.replies.toLocaleString()}회 주고받음`;
+    if (soulmateLegacyEl) soulmateLegacyEl.innerText = `${otherName} (${topP.score}점)`;
+  } else {
+    if (soulmateNameEl) soulmateNameEl.innerText = "단짝 데이터 집계 중";
+    if (soulmateScoreEl) soulmateScoreEl.classList.add("hidden");
+    if (soulmateSubEl) soulmateSubEl.innerText = "대화 데이터가 누적되면 표시됩니다.";
+    if (soulmateLegacyEl) soulmateLegacyEl.innerText = "단짝 데이터 집계 중";
   }
 
   const words = (m.topWords || []).slice(0, 3).map(w => `#${w.word}`).join(" ");
@@ -459,8 +612,10 @@ function renderOverviewMembers() {
   container.innerHTML = "";
 
   currentData.members.forEach(m => {
+    const charInfo = getCharData(m.cti);
+    const isMe = Boolean(myMemberId && (m.id === myMemberId || m.name === myMemberId));
     const card = document.createElement("div");
-    card.className = "bg-[#090e13] border border-white/[0.08] hover:border-[#f5b73d] rounded-[28px] p-5 sm:p-6 space-y-4 cursor-pointer transition hover:-translate-y-1 shadow-[0_4px_24px_rgba(0,0,0,0.25)] flex flex-col justify-between";
+    card.className = `bg-[#090e13] ${isMe ? 'border-2 border-[#f5b73d] shadow-[0_4px_30px_rgba(245,183,61,0.2)]' : 'border border-white/[0.08] hover:border-[#f5b73d]'} rounded-[28px] p-5 sm:p-6 space-y-4 cursor-pointer transition hover:-translate-y-1 shadow-[0_4px_24px_rgba(0,0,0,0.25)] flex flex-col justify-between`;
     card.onclick = () => {
       selectFocusMember(m.id || m.name);
       openReportDetail("tabCharacters");
@@ -469,10 +624,15 @@ function renderOverviewMembers() {
       <div class="space-y-3">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-3">
-            <span class="text-3xl sm:text-4xl w-12 h-12 rounded-2xl bg-[#111820] flex items-center justify-center border border-white/[0.06] shadow-sm">${m.avatar}</span>
+            <div class="w-12 h-12 rounded-2xl bg-gradient-to-b from-[#1c2734] to-[#0c131a] flex items-center justify-center p-1 border border-white/[0.1] shadow-inner shrink-0 overflow-hidden">
+              <img src="${charInfo.img}" alt="${m.name}" class="w-full h-full object-contain">
+            </div>
             <div>
-              <h5 class="text-base sm:text-lg font-black text-[#f6f8fa] flex items-center gap-2">${m.name}</h5>
-              <p class="text-xs text-[#848c96] mt-0.5">${m.title}</p>
+              <h5 class="text-base sm:text-lg font-black text-[#f6f8fa] flex items-center gap-2 whitespace-nowrap">
+                <span>${m.name}</span>
+                ${isMe ? '<span class="text-[10px] px-2 py-0.5 rounded-full bg-[#f5b73d] text-[#030708] font-black flex items-center gap-1 shadow-sm whitespace-nowrap"><i class="fa-solid fa-crown text-[8px]"></i> 나</span>' : ''}
+              </h5>
+              <p class="text-xs text-[#f5b73d] font-bold mt-0.5 whitespace-nowrap">${m.title || charInfo.name}</p>
             </div>
           </div>
           <div>
@@ -482,16 +642,16 @@ function renderOverviewMembers() {
 
         <div class="grid grid-cols-3 gap-2 bg-[#030708] p-3 rounded-2xl border border-white/[0.06] text-center">
           <div>
-            <span class="text-[10px] text-[#848c96]">발화 점유율</span>
-            <p class="text-xs sm:text-sm font-bold text-[#f6f8fa] mt-0.5">${m.msgRatio}%</p>
+            <span class="text-[10px] text-[#848c96] whitespace-nowrap">발화 점유율</span>
+            <p class="text-xs sm:text-sm font-bold text-[#f6f8fa] mt-0.5 whitespace-nowrap">${m.msgRatio}%</p>
           </div>
           <div>
-            <span class="text-[10px] text-[#848c96]">평균 글자수</span>
-            <p class="text-xs sm:text-sm font-bold text-[#f6f8fa] mt-0.5">${m.avgLen}자</p>
+            <span class="text-[10px] text-[#848c96] whitespace-nowrap">평균 글자수</span>
+            <p class="text-xs sm:text-sm font-bold text-[#f6f8fa] mt-0.5 whitespace-nowrap">${m.avgLen}자</p>
           </div>
           <div>
-            <span class="text-[10px] text-[#848c96]">대화 선제개시</span>
-            <p class="text-xs sm:text-sm font-bold text-[#f5b73d] mt-0.5">${m.starters}회</p>
+            <span class="text-[10px] text-[#848c96] whitespace-nowrap">대화 선제개시</span>
+            <p class="text-xs sm:text-sm font-bold text-[#f5b73d] mt-0.5 whitespace-nowrap">${m.starters}회</p>
           </div>
         </div>
       </div>
@@ -500,7 +660,7 @@ function renderOverviewMembers() {
         <span class="text-[11px] px-3 py-1 rounded-full bg-[#111820] text-[#f6f8fa] border border-white/[0.08] font-medium truncate max-w-[200px]">
           ${m.trophy}
         </span>
-        <span class="text-xs font-bold text-[#f5b73d] flex items-center gap-1 hover:underline">
+        <span class="text-xs font-bold text-[#f5b73d] flex items-center gap-1 hover:underline whitespace-nowrap">
           캐릭터 카드 <i class="fa-solid fa-arrow-right text-[10px]"></i>
         </span>
       </div>
@@ -530,10 +690,15 @@ let currentCharDeckIndex = 0;
 function renderCharacterCards(resetToMe = false) {
   if (!currentData || !currentData.members || currentData.members.length === 0) return;
 
-  // 명시적으로 나에게 맞추라고 한 경우에만 포커스 인덱스로 맞춤
-  if (resetToMe && focusedMemberId) {
-    const fIdx = currentData.members.findIndex(m => m.id === focusedMemberId || m.name === focusedMemberId);
-    if (fIdx !== -1) currentCharDeckIndex = fIdx;
+  // resetToMe가 true일 때 '나' 또는 포커스 인덱스로 맞춤
+  if (resetToMe) {
+    if (myMemberId) {
+      const myIdx = currentData.members.findIndex(m => m.id === myMemberId || m.name === myMemberId);
+      if (myIdx !== -1) currentCharDeckIndex = myIdx;
+    } else if (focusedMemberId) {
+      const fIdx = currentData.members.findIndex(m => m.id === focusedMemberId || m.name === focusedMemberId);
+      if (fIdx !== -1) currentCharDeckIndex = fIdx;
+    }
   }
 
   if (currentCharDeckIndex < 0 || currentCharDeckIndex >= currentData.members.length) {
@@ -546,18 +711,19 @@ function renderCharacterCards(resetToMe = false) {
     memberListEl.innerHTML = "";
     currentData.members.forEach((m, idx) => {
       const isSelected = idx === currentCharDeckIndex;
-      const isMe = Boolean(focusedMemberId && (m.id === focusedMemberId || m.name === focusedMemberId));
+      const isMe = Boolean(myMemberId && (m.id === myMemberId || m.name === myMemberId));
+      const charInfo = getCharData(m.cti);
       
       const btn = document.createElement("button");
-      btn.className = `px-3.5 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-2 shrink-0 border ${
+      btn.className = `px-3.5 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-2 shrink-0 border whitespace-nowrap ${
         isSelected 
           ? 'bg-[#f5b73d] text-[#030708] border-[#f5b73d] shadow-md scale-105' 
           : 'bg-[#111820] text-[#f6f8fa] hover:bg-[#16202a] border-white/[0.08]'
       }`;
       btn.innerHTML = `
-        <span class="text-sm">${m.avatar}</span>
+        <img src="${charInfo.img}" class="w-4 h-4 object-contain shrink-0">
         <span>${m.name}</span>
-        ${isMe ? '<i class="fa-solid fa-crown text-[10px] text-amber-900"></i>' : ''}
+        ${isMe ? '<i class="fa-solid fa-crown text-[10px] text-amber-400 shrink-0"></i>' : ''}
       `;
       btn.onclick = () => selectCharCardIndex(idx);
       memberListEl.appendChild(btn);
@@ -596,7 +762,7 @@ function renderCurrentDeckCard() {
   const m = currentData.members[currentCharDeckIndex];
   if (!m) return;
 
-  const isMe = Boolean(focusedMemberId && (m.id === focusedMemberId || m.name === focusedMemberId));
+  const isMe = Boolean(myMemberId && (m.id === myMemberId || m.name === myMemberId));
 
   const quotesHtml = (m.quotes || []).map(q => `
     <li class="flex items-start gap-2 text-xs text-[#848c96] italic">
@@ -607,7 +773,7 @@ function renderCurrentDeckCard() {
   `).join("");
 
   const signaturesHtml = (m.signatures || []).map(s => `
-    <span class="px-2.5 py-1 rounded-full bg-[#111820] border border-white/[0.08] text-[#f6f8fa] text-[11px] font-mono">#${s}</span>
+    <span class="px-2.5 py-1 rounded-full bg-[#111820] border border-white/[0.08] text-[#f6f8fa] text-[11px] font-mono whitespace-nowrap">#${s}</span>
   `).join("");
 
   container.innerHTML = `
@@ -615,21 +781,27 @@ function renderCurrentDeckCard() {
       <!-- 카드 상단 프로필 -->
       <div class="flex items-start justify-between gap-4">
         <div class="flex items-center gap-3.5">
-          <div class="w-16 h-16 rounded-2xl bg-[#111820] border border-white/[0.08] flex items-center justify-center text-3xl shadow-sm">
-            ${m.avatar}
+          <div class="w-16 h-16 rounded-2xl bg-gradient-to-b from-[#1c2734] to-[#0c131a] border border-white/[0.12] flex items-center justify-center p-1 shadow-inner shrink-0 relative">
+            <div class="absolute inset-0 bg-[#f5b73d]/10 rounded-2xl blur-md pointer-events-none"></div>
+            <img src="${getCharData(m.cti).img}" class="relative z-10 w-full h-full object-contain filter drop-shadow">
           </div>
           <div>
             <div class="flex items-center gap-2 flex-wrap">
-              <h4 class="text-xl sm:text-2xl font-black text-[#f6f8fa] flex items-center gap-2">
+              <h4 class="text-xl sm:text-2xl font-black text-[#f6f8fa] flex items-center gap-2 whitespace-nowrap">
                 <span>${m.name}</span>
-                ${isMe ? '<span class="text-xs px-2.5 py-0.5 rounded-full bg-[#f5b73d] text-white font-black flex items-center gap-1 shadow-sm"><i class="fa-solid fa-crown text-[10px]"></i> 내 카드</span>' : ''}
+                ${isMe ? '<span class="text-xs px-2.5 py-0.5 rounded-full bg-[#f5b73d] text-[#030708] font-black flex items-center gap-1 shadow-sm whitespace-nowrap"><i class="fa-solid fa-crown text-[10px]"></i> 내 카드</span>' : ''}
               </h4>
               ${getCtiBadgeHtml(m.cti)}
+              ${!isMe ? `
+                <button onclick="setMyMember('${m.id || m.name}')" class="text-xs px-2.5 py-0.5 rounded-full bg-[#111820] hover:bg-[#f5b73d] text-[#848c96] hover:text-[#030708] border border-white/[0.1] font-bold transition flex items-center gap-1 cursor-pointer whitespace-nowrap">
+                  <i class="fa-solid fa-user-check text-[10px]"></i> '나'로 지정
+                </button>
+              ` : ''}
             </div>
-            <p class="text-xs font-bold text-[#f5b73d] mt-1">${m.title}</p>
+            <p class="text-xs font-bold text-[#f5b73d] mt-1 whitespace-nowrap">${m.title}</p>
           </div>
         </div>
-        <span class="text-xs font-mono font-bold text-[#848c96] bg-[#111820] border border-white/[0.08] px-3 py-1 rounded-full">
+        <span class="text-xs font-mono font-bold text-[#848c96] bg-[#111820] border border-white/[0.08] px-3 py-1 rounded-full whitespace-nowrap shrink-0">
           대화 지분 ${m.msgRatio}%
         </span>
       </div>
@@ -826,10 +998,20 @@ function renderChemistryTab() {
           </span>
         </div>
 
-        <div class="text-center py-2 space-y-1">
-          <div class="text-2xl font-black text-[#f6f8fa] flex items-center justify-center gap-2">
+        <div class="text-center py-2 space-y-2">
+          <!-- 듀오 캐릭터 썸네일 -->
+          <div class="flex items-center justify-center gap-3">
+            <div class="w-14 h-14 rounded-2xl bg-gradient-to-b from-[#1c2734] to-[#0c131a] p-1 border border-white/[0.12] flex items-center justify-center shrink-0 shadow-inner">
+              <img src="${getCharData(p.types[0]).img}" alt="${p.pair[0]}" class="w-full h-full object-contain">
+            </div>
+            <span class="text-xl animate-pulse">❤️</span>
+            <div class="w-14 h-14 rounded-2xl bg-gradient-to-b from-[#1c2734] to-[#0c131a] p-1 border border-white/[0.12] flex items-center justify-center shrink-0 shadow-inner">
+              <img src="${getCharData(p.types[1]).img}" alt="${p.pair[1]}" class="w-full h-full object-contain">
+            </div>
+          </div>
+          <div class="text-xl font-black text-[#f6f8fa] flex items-center justify-center gap-2">
             <span>${p.pair[0]}</span>
-            <span class="text-[#f5b73d] text-lg">❤️</span>
+            <span class="text-[#f5b73d] text-sm">&amp;</span>
             <span>${p.pair[1]}</span>
           </div>
           <div class="flex items-center justify-center gap-2">
@@ -867,9 +1049,17 @@ function renderChemistryTab() {
     card.innerHTML = `
       <div class="flex items-center justify-between gap-2">
         <div class="flex items-center gap-2.5">
-          <span class="w-6 h-6 rounded-full bg-[#111820] text-[#848c96] flex items-center justify-center font-bold text-xs">
+          <span class="w-6 h-6 rounded-full bg-[#111820] text-[#848c96] flex items-center justify-center font-bold text-xs shrink-0">
             ${p.rank}
           </span>
+          <div class="flex items-center -space-x-1.5 shrink-0">
+            <div class="w-7 h-7 rounded-lg bg-gradient-to-b from-[#1c2734] to-[#0c131a] p-0.5 border border-white/[0.1] overflow-hidden">
+              <img src="${getCharData(p.types[0]).img}" class="w-full h-full object-contain">
+            </div>
+            <div class="w-7 h-7 rounded-lg bg-gradient-to-b from-[#1c2734] to-[#0c131a] p-0.5 border border-white/[0.1] overflow-hidden">
+              <img src="${getCharData(p.types[1]).img}" class="w-full h-full object-contain">
+            </div>
+          </div>
           <span class="text-sm font-bold text-[#f6f8fa]">${p.pair[0]} ↔ ${p.pair[1]}</span>
         </div>
         <div class="flex items-center gap-1.5">
@@ -959,8 +1149,10 @@ function renderActivityTab() {
 
       card.innerHTML = `
         <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <span class="text-2xl">${m.avatar}</span>
+          <div class="flex items-center gap-2.5">
+            <div class="w-9 h-9 rounded-xl bg-gradient-to-b from-[#1c2734] to-[#0c131a] p-0.5 border border-white/[0.1] flex items-center justify-center shrink-0 overflow-hidden shadow-inner">
+              <img src="${getCharData(m.cti).img}" alt="${m.name}" class="w-full h-full object-contain">
+            </div>
             <div>
               <h5 class="text-sm font-bold text-[#f6f8fa]">${m.name}</h5>
               <div class="mt-0.5">${getCtiBadgeHtml(m.cti)}</div>
@@ -1129,17 +1321,36 @@ function runChemistrySimulation() {
   if (!mA || !mB) return;
 
   const chem = window.CTI_SYSTEM.getChemistry(mA.cti, mB.cti, mA.name, mB.name);
+  const c1 = getCharData(mA.cti);
+  const c2 = getCharData(mB.cti);
 
   resultBox.innerHTML = `
-    <div class="flex items-center justify-between border-b border-[#111820] pb-2">
-      <div class="flex items-center gap-2">
-        <span class="text-base font-bold text-[#f6f8fa]">${mA.name} & ${mB.name}</span>
-        <span class="text-xs text-[#f5b73d] font-bold">${chem.badge}</span>
+    <div class="flex items-center justify-between border-b border-[#111820] pb-3">
+      <div class="flex items-center gap-3">
+        <div class="flex items-center -space-x-2 shrink-0">
+          <div class="w-11 h-11 rounded-2xl bg-gradient-to-b from-[#1c2734] to-[#0c131a] p-1 border border-white/[0.12] shadow-inner">
+            <img src="${c1.img}" class="w-full h-full object-contain">
+          </div>
+          <div class="w-11 h-11 rounded-2xl bg-gradient-to-b from-[#1c2734] to-[#0c131a] p-1 border border-white/[0.12] shadow-inner">
+            <img src="${c2.img}" class="w-full h-full object-contain">
+          </div>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-base font-bold text-[#f6f8fa]">${mA.name} & ${mB.name}</span>
+            <span class="text-xs text-[#f5b73d] font-bold">${chem.badge}</span>
+          </div>
+          <div class="flex items-center gap-1.5 mt-0.5">
+            ${getCtiBadgeHtml(mA.cti)}
+            <span class="text-xs text-[#848c96] font-bold">&</span>
+            ${getCtiBadgeHtml(mB.cti)}
+          </div>
+        </div>
       </div>
       <span class="text-sm font-black text-[#f5b73d]">${chem.grade}급 (${chem.score}점)</span>
     </div>
-    <p class="text-xs text-[#f6f8fa] font-semibold">${chem.summary}</p>
-    <p class="text-xs text-[#848c96] leading-relaxed">${chem.details}</p>
+    <p class="text-xs text-[#f6f8fa] font-semibold mt-2">${chem.summary}</p>
+    <p class="text-xs text-[#848c96] leading-relaxed mt-1">${chem.details}</p>
   `;
 }
 
@@ -1152,20 +1363,29 @@ function renderReportEncyclopedia() {
   const allTypes = window.CTI_SYSTEM.TYPES;
   Object.keys(allTypes).forEach(code => {
     const item = allTypes[code];
+    const charInfo = getCharData(code);
     const card = document.createElement("div");
-    card.className = "bg-[#090e13] border border-white/[0.08] hover:border-[#f5b73d] rounded-[32px] p-5 space-y-3 cursor-pointer transition hover:-translate-y-1 shadow-[0_4px_20px_rgba(0,0,0,0.2)]";
+    card.className = "bg-[#090e13] border border-white/[0.08] hover:border-[#f5b73d] rounded-[28px] p-5 space-y-3 cursor-pointer transition hover:-translate-y-1 shadow-[0_4px_20px_rgba(0,0,0,0.2)] flex flex-col justify-between group";
     card.onclick = () => openTypeDetailModal(code);
 
     card.innerHTML = `
-      <div class="flex items-center justify-between">
-        ${getCtiBadgeHtml(item.code)}
-        <span class="text-[10px] text-[#848c96]">클릭하여 상세</span>
+      <div class="space-y-2.5">
+        <div class="flex items-center justify-between">
+          ${getCtiBadgeHtml(item.code)}
+          <span class="text-[10px] text-[#848c96] group-hover:text-[#f5b73d] transition-colors">클릭하여 상세</span>
+        </div>
+        <div class="flex items-center gap-3">
+          <div class="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-b from-[#1c2734] to-[#0c131a] p-1 border border-white/[0.1] flex items-center justify-center shrink-0 shadow-inner group-hover:scale-105 transition-transform">
+            <img src="${charInfo.img}" alt="${charInfo.name}" class="w-full h-full object-contain">
+          </div>
+          <div class="min-w-0">
+            <h5 class="text-sm font-black text-[#f6f8fa] truncate group-hover:text-[#f5b73d] transition-colors">${item.title}</h5>
+            <p class="text-xs text-[#f5b73d] font-bold mt-0.5 truncate">${charInfo.name}</p>
+            <p class="text-[10px] text-[#848c96] line-clamp-1 mt-0.5">${item.sub}</p>
+          </div>
+        </div>
+        <p class="text-xs text-[#848c96] line-clamp-2 leading-relaxed pt-1 border-t border-white/[0.06]">${item.desc}</p>
       </div>
-      <div>
-        <h5 class="text-sm font-bold text-[#f6f8fa] truncate">${item.title}</h5>
-        <p class="text-xs text-[#f5b73d] font-medium mt-0.5 line-clamp-1">${item.sub}</p>
-      </div>
-      <p class="text-xs text-[#848c96] line-clamp-3 leading-relaxed">${item.desc}</p>
       <div class="pt-2 border-t border-white/[0.08] flex items-center justify-between text-[11px]">
         <span class="text-[#f5b73d] font-medium">💖 ${item.bestMatch}</span>
         <span class="text-[#848c96] font-medium">⚡ ${item.worstMatch}</span>
@@ -1184,17 +1404,35 @@ function renderLandingEncyclopedia() {
   const allTypes = window.CTI_SYSTEM.TYPES;
   Object.keys(allTypes).forEach(code => {
     const item = allTypes[code];
+    const charInfo = getCharData(code);
     const card = document.createElement("div");
-    card.className = "bg-[#090e13] border border-white/[0.08] hover:border-[#f5b73d] rounded-[32px] p-5 space-y-2 cursor-pointer transition hover:-translate-y-1 shadow-[0_4px_20px_rgba(0,0,0,0.2)]";
+    card.className = "bg-[#090e13] border border-white/[0.08] hover:border-[#f5b73d] rounded-[28px] p-4 space-y-3 cursor-pointer transition hover:-translate-y-1 shadow-[0_4px_20px_rgba(0,0,0,0.25)] flex flex-col justify-between group";
     card.onclick = () => openTypeDetailModal(code);
 
     card.innerHTML = `
-      <div class="flex items-center justify-between">
-        ${getCtiBadgeHtml(item.code)}
-        <span class="text-[10px] text-[#848c96]">상세보기</span>
+      <div class="space-y-2">
+        <div class="flex items-center justify-between">
+          ${getCtiBadgeHtml(item.code)}
+          <span class="text-[10px] text-[#848c96] group-hover:text-[#f5b73d] transition-colors">상세보기</span>
+        </div>
+        
+        <div class="flex items-center gap-2.5 pt-1">
+          <div class="w-12 h-12 rounded-2xl bg-gradient-to-b from-[#1c2734] to-[#0c131a] p-1 border border-white/[0.1] flex items-center justify-center shrink-0 shadow-inner group-hover:scale-105 transition-transform">
+            <img src="${charInfo.img}" alt="${charInfo.name}" class="w-full h-full object-contain">
+          </div>
+          <div class="min-w-0">
+            <h5 class="text-sm font-black text-[#f6f8fa] truncate group-hover:text-[#f5b73d] transition-colors">${item.title}</h5>
+            <p class="text-[11px] text-[#f5b73d] font-bold mt-0.5 truncate">${charInfo.name}</p>
+          </div>
+        </div>
+
+        <p class="text-[11px] text-[#848c96] line-clamp-2 leading-relaxed pt-1 border-t border-white/[0.05]">${item.desc}</p>
       </div>
-      <h5 class="text-sm font-bold text-[#f6f8fa] truncate">${item.title}</h5>
-      <p class="text-xs text-[#848c96] line-clamp-2">${item.desc}</p>
+
+      <div class="flex items-center justify-between text-[10px] text-[#848c96] pt-1">
+        <span class="text-[#f5b73d]">💖 ${item.bestMatch}</span>
+        <span class="text-slate-400">⚡ ${item.worstMatch}</span>
+      </div>
     `;
     container.appendChild(card);
   });
@@ -1204,23 +1442,33 @@ function openTypeDetailModal(code) {
   const item = window.CTI_SYSTEM.TYPES[code];
   if (!item) return;
 
+  const charInfo = getCharData(code);
   const content = document.getElementById("typeModalContent");
   if (!content) return;
 
   content.innerHTML = `
     <div class="space-y-4">
-      <div class="flex items-center justify-between border-b border-white/[0.08] pb-3">
-        <div>
-          ${getCtiBadgeHtml(item.code, "px-3 py-1 text-sm font-black")}
-          <h3 class="text-xl font-black text-[#f6f8fa] mt-2">${item.title}</h3>
-          <p class="text-xs text-[#f5b73d] font-medium">${item.sub}</p>
+      <!-- 캐릭터 프로필 히어로 헤더 -->
+      <div class="flex items-center gap-4 border-b border-white/[0.08] pb-4">
+        <div class="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-gradient-to-b from-[#1c2734] to-[#0c131a] p-2 border border-white/[0.12] flex items-center justify-center shrink-0 shadow-inner relative overflow-hidden">
+          <div class="absolute inset-0 rounded-3xl pointer-events-none" style="background: radial-gradient(circle, ${(charInfo.color || '#f5b73d')}44 0%, transparent 70%);"></div>
+          <img src="${charInfo.img}" alt="${charInfo.name}" class="relative z-10 w-full h-full object-contain">
+        </div>
+        <div class="min-w-0 flex-grow text-left">
+          <div class="flex items-center gap-2">
+            ${getCtiBadgeHtml(item.code, "px-3 py-1 text-xs font-black")}
+            <span class="text-xs text-[#f5b73d] font-black">${charInfo.name}</span>
+          </div>
+          <h3 class="text-xl sm:text-2xl font-black text-[#f6f8fa] mt-1 truncate">${item.title}</h3>
+          <p class="text-xs text-[#848c96] font-medium mt-0.5">"${item.sub}"</p>
         </div>
       </div>
+
       <p class="text-xs text-[#848c96] leading-relaxed">${item.desc}</p>
       <div class="text-xs text-[#f6f8fa] font-mono bg-[#030708] p-2.5 rounded-xl border border-white/[0.08]">
         ${item.tag}
       </div>
-      <div class="bg-[rgba(245, 183, 61,0.1)] border border-[rgba(245, 183, 61,0.3)] rounded-2xl p-3 space-y-1">
+      <div class="bg-[rgba(245,183,61,0.1)] border border-[rgba(245,183,61,0.3)] rounded-2xl p-3 space-y-1">
         <p class="text-xs text-[#f5b73d] font-bold">🔥 뼈 때리는 팩폭</p>
         <p class="text-xs text-[#f6f8fa] leading-relaxed">${item.savage}</p>
         <p class="text-[11px] text-[#848c96] pt-1">💡 성찰 조언: ${item.advice}</p>
@@ -1307,58 +1555,333 @@ function triggerConfetti() {
   }
 }
 
+let currentCardMode = "personal"; // "personal" | "group"
+let currentCardMemberIndex = 0;
+
 function openShareModal() {
   if (!currentData) return;
   const modal = document.getElementById("shareCardModal");
   if (!modal) return;
 
-  const roomTitleEl = document.getElementById("cardRoomTitle");
-  const gradeBadgeEl = document.getElementById("cardGradeBadge");
-  const dateRangeEl = document.getElementById("cardDateRange");
-  const totalMsgsEl = document.getElementById("cardTotalMsgs");
-  const groupVibeEl = document.getElementById("cardGroupVibe");
+  // 멤버 선택 셀렉트 옵션 채우기
+  const select = document.getElementById("cardMemberSelect");
+  if (select && currentData.members) {
+    select.innerHTML = "";
 
-  if (roomTitleEl) roomTitleEl.innerText = currentData.roomName || "단톡방 리포트";
-  if (gradeBadgeEl) gradeBadgeEl.innerText = `우정 ${currentData.groupGrade || "S+"}`;
-  if (dateRangeEl) dateRangeEl.innerText = currentData.dateRange || "분석 완료";
-  if (totalMsgsEl) totalMsgsEl.innerText = (currentData.totalMessages || 0).toLocaleString();
-  if (groupVibeEl) groupVibeEl.innerText = `"${currentData.groupVibe || '영혼의 찰떡 단톡방'}"`;
+    // 만약 '나'로 지정된 멤버가 있다면 그 멤버를 기본 선택!
+    let targetIdx = 0;
+    if (myMemberId) {
+      const myIdx = currentData.members.findIndex(m => m.id === myMemberId || m.name === myMemberId);
+      if (myIdx !== -1) targetIdx = myIdx;
+    } else if (focusedMemberId) {
+      const fIdx = currentData.members.findIndex(m => m.id === focusedMemberId || m.name === focusedMemberId);
+      if (fIdx !== -1) targetIdx = fIdx;
+    }
 
-  if (currentData.pairRankings && currentData.pairRankings.length > 0) {
-    const p = currentData.pairRankings[0];
-    const topPairEl = document.getElementById("cardTopPair");
-    const topPairScoreEl = document.getElementById("cardTopPairScore");
-    if (topPairEl) topPairEl.innerText = `${p.pair[0]} ↔ ${p.pair[1]}`;
-    if (topPairScoreEl) topPairScoreEl.innerText = `${p.score}점 (${p.grade}급)`;
-  }
-
-  const grid = document.getElementById("cardMembersGrid");
-  if (grid) {
-    grid.innerHTML = "";
-    (currentData.members || []).slice(0, 4).forEach(m => {
-      const chip = document.createElement("div");
-      chip.className = "bg-slate-900/80 border border-slate-800 rounded-xl p-2.5 flex items-center gap-2";
-      chip.innerHTML = `
-        <span class="text-xl">${m.avatar}</span>
-        <div class="min-w-0">
-          <div class="flex items-center gap-1.5">
-            <span class="text-xs font-bold text-white truncate">${m.name}</span>
-            ${getCtiBadgeHtml(m.cti, "text-[9px] px-1.5 py-0.2")}
-          </div>
-          <p class="text-[10px] text-slate-400 truncate">${m.title}</p>
-        </div>
-      `;
-      grid.appendChild(chip);
+    currentData.members.forEach((m, idx) => {
+      const opt = document.createElement("option");
+      opt.value = idx;
+      const isMe = Boolean(myMemberId && (m.id === myMemberId || m.name === myMemberId));
+      opt.innerText = `${m.name} (${m.cti || 'CTI'})${isMe ? ' 👑(나)' : ''}`;
+      select.appendChild(opt);
     });
+    currentCardMemberIndex = targetIdx;
+    select.value = targetIdx;
   }
 
-  setShareRatio(currentShareRatio || "story");
+  setCardMode("personal");
   modal.classList.remove("hidden");
 }
 
 function closeShareModal() {
   const modal = document.getElementById("shareCardModal");
   if (modal) modal.classList.add("hidden");
+}
+
+function setCardMode(mode) {
+  currentCardMode = mode;
+  const btnPersonal = document.getElementById("btnCardModePersonal");
+  const btnGroup = document.getElementById("btnCardModeGroup");
+  const selectWrapper = document.getElementById("cardMemberSelectWrapper");
+
+  if (mode === "personal") {
+    btnPersonal.className = "px-3.5 py-1.5 rounded-full text-xs font-bold bg-[#f5b73d] text-[#030708] transition shadow-sm flex items-center gap-1.5";
+    btnGroup.className = "px-3.5 py-1.5 rounded-full text-xs font-semibold text-[#848c96] hover:text-[#f6f8fa] transition flex items-center gap-1.5";
+    if (selectWrapper) selectWrapper.classList.remove("hidden");
+  } else {
+    btnGroup.className = "px-3.5 py-1.5 rounded-full text-xs font-bold bg-[#f5b73d] text-[#030708] transition shadow-sm flex items-center gap-1.5";
+    btnPersonal.className = "px-3.5 py-1.5 rounded-full text-xs font-semibold text-[#848c96] hover:text-[#f6f8fa] transition flex items-center gap-1.5";
+    if (selectWrapper) selectWrapper.classList.add("hidden");
+  }
+
+  renderShareCard();
+}
+
+function onCardMemberChange(val) {
+  currentCardMemberIndex = parseInt(val, 10) || 0;
+  renderShareCard();
+}
+
+function renderShareCard() {
+  if (!currentData) return;
+
+  const categoryTag = document.getElementById("cardCategoryTag");
+  const subHeader = document.getElementById("cardSubHeader");
+  const badgeRight = document.getElementById("cardBadgeRight");
+  const heroSection = document.getElementById("cardHeroSection");
+  const bodySection = document.getElementById("cardBodySection");
+  const charImg = document.getElementById("cardCharacterImg");
+  const heroName = document.getElementById("cardHeroName");
+  const heroCti = document.getElementById("cardHeroCti");
+  const heroTitle = document.getElementById("cardHeroTitle");
+  const heroSub = document.getElementById("cardHeroSub");
+
+  // 캐릭터 맵 조회 헬퍼 (16개 전 유형 1:1 매칭 & Tainted Canvas 원천 차단 Base64 자동 연동)
+  const getCharData = (ctiCode) => {
+    const code = (ctiCode || "ELFA").toUpperCase();
+    const ctiDef = (window.CTI_SYSTEM && window.CTI_SYSTEM.TYPES) ? window.CTI_SYSTEM.TYPES[code] : null;
+    const charKey = (ctiDef && ctiDef.character) ? ctiDef.character.toUpperCase() : code;
+    const base = (window.CTI_SYSTEM && window.CTI_SYSTEM.CHARACTERS && window.CTI_SYSTEM.CHARACTERS[charKey]) 
+      ? { ...window.CTI_SYSTEM.CHARACTERS[charKey] } 
+      : { id: charKey.toLowerCase(), name: "CTI 캐릭터", desc: "단톡방 성향", img: `images/characters/cutout_${charKey.toLowerCase()}.png`, color: "#f5b73d" };
+
+    // window.CTI_AVATARS에 Base64 Data URL이 있으면 우선 사용 (file:/// 보안 sandbox 오염 방지)
+    if (window.CTI_AVATARS && window.CTI_AVATARS[charKey]) {
+      base.img = window.CTI_AVATARS[charKey];
+    } else if (window.CTI_AVATARS && window.CTI_AVATARS[code]) {
+      base.img = window.CTI_AVATARS[code];
+    }
+    return base;
+  };
+
+  if (currentCardMode === "personal") {
+    // [개인 포토카드 모드]
+    const m = (currentData.members && currentData.members[currentCardMemberIndex]) 
+      ? currentData.members[currentCardMemberIndex] 
+      : (currentData.members ? currentData.members[0] : null);
+
+    if (!m) return;
+
+    const ctiDef = window.CTI_SYSTEM && window.CTI_SYSTEM.TYPES ? window.CTI_SYSTEM.TYPES[m.cti] : null;
+    const charInfo = getCharData(m.cti);
+
+    if (categoryTag) categoryTag.innerText = "CTI PERSONAL IDENTITY";
+    if (subHeader) subHeader.innerText = `${currentData.roomName || '단톡방'} • ${currentData.dateRange || '최근 분석'}`;
+    if (badgeRight) badgeRight.innerText = `${m.msgRatio || 0}% 지분`;
+
+    if (heroSection) heroSection.classList.remove("hidden");
+    if (charImg) {
+      charImg.src = charInfo.img;
+      charImg.alt = charInfo.name;
+    }
+    if (heroName) heroName.innerText = m.name;
+    if (heroCti) {
+      heroCti.innerText = m.cti || "CTI";
+      heroCti.style.backgroundColor = charInfo.color || "#f5b73d";
+    }
+    if (heroTitle) {
+      heroTitle.innerText = m.title || (ctiDef ? ctiDef.title : charInfo.name);
+      heroTitle.style.color = charInfo.color || "#f5b73d";
+    }
+    if (heroSub) {
+      const subText = (ctiDef && ctiDef.sub) ? ctiDef.sub : (m.quotes && m.quotes.length > 0 ? m.quotes[0] : charInfo.desc);
+      heroSub.innerText = `"${subText}"`;
+    }
+
+    // 글로우 색상 동기화 (라디얼 그라데이션)
+    const cardHeroGlow = document.getElementById("cardHeroGlow");
+    if (cardHeroGlow) {
+      cardHeroGlow.style.background = `radial-gradient(circle, ${(charInfo.color || '#f5b73d')}44 0%, transparent 70%)`;
+    }
+
+    // 바디: 핵심 스탯 & 시그니처 말버릇 알약 태그
+    if (bodySection) {
+      const sigs = (m.signatures || (m.topWords ? m.topWords.map(w => w.word) : [])).slice(0, 3);
+      const sigPills = sigs.map(s => `<span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-[#16202a] text-[#f5b73d] border border-[#f5b73d]/30 whitespace-nowrap shadow-sm">#${s}</span>`).join(" ");
+
+      // 팩폭 리포트 요약본 (온전한 문장 제시, 끝 짤림 방지)
+      const savageText = (ctiDef && ctiDef.savageShort) 
+        ? ctiDef.savageShort 
+        : (m.savage 
+            ? (m.savage.split(". ")[0] + (m.savage.includes(".") ? "." : "")) 
+            : "단톡방의 침묵을 깨고 활기를 불어넣는 텐션 메이커!");
+
+      bodySection.innerHTML = `
+        <!-- 지표 2열 카드 (줄바꿈 및 받침 잘림 방지) -->
+        <div class="grid grid-cols-2 gap-2 text-left">
+          <div class="bg-[#090e13]/90 border border-white/[0.08] rounded-2xl p-2.5">
+            <span class="text-[9px] text-[#848c96] font-bold block whitespace-nowrap">💬 총 발화량</span>
+            <p class="text-xs font-black text-white mt-0.5 whitespace-nowrap break-keep leading-normal pb-0.5">
+              ${(m.totalMsgs || 0).toLocaleString()}건 <span class="text-[10px] text-[#f5b73d]">(${m.msgRatio}%)</span>
+            </p>
+          </div>
+          <div class="bg-[#090e13]/90 border border-white/[0.08] rounded-2xl p-2.5">
+            <span class="text-[9px] text-[#848c96] font-bold block whitespace-nowrap">⚡ 평균 문장 길이</span>
+            <p class="text-xs font-black text-white mt-0.5 whitespace-nowrap break-keep leading-normal pb-0.5">
+              ${m.avgLen || 0}자 <span class="text-[10px] text-emerald-400">(${m.avgLen > 10 ? '서사형' : '압축단답'})</span>
+            </p>
+          </div>
+        </div>
+
+        <!-- 시그니처 말버릇 (가로 스크롤/랩 최소화) -->
+        <div class="bg-[#090e13]/90 border border-white/[0.08] rounded-2xl p-2.5 text-left space-y-1">
+          <div class="flex items-center justify-between">
+            <span class="text-[9px] font-bold text-[#848c96] uppercase tracking-wider flex items-center gap-1 whitespace-nowrap">
+              <span>🏷️</span> 입에 붙은 시그니처 말버릇
+            </span>
+          </div>
+          <div class="flex flex-wrap gap-1.5 pt-0.5 items-center">
+            ${sigPills || '<span class="text-[10px] text-[#848c96] whitespace-nowrap">#티키타카</span>'}
+          </div>
+        </div>
+
+        <!-- 뼈 때리는 팩폭 리포트 요약본 (끝 잘림 방지, 100% 온전한 문장 노출) -->
+        <div class="bg-gradient-to-r from-[rgba(245,183,61,0.12)] to-[rgba(139,92,246,0.12)] border border-[rgba(245,183,61,0.25)] rounded-2xl p-2.5 text-left">
+          <div class="flex items-center gap-1.5 text-[9px] font-black text-[#f5b73d] uppercase tracking-wider mb-1 whitespace-nowrap">
+            <span>💀</span> 팩폭 리포트 요약
+          </div>
+          <p class="text-[11px] text-[#f6f8fa] leading-snug font-medium break-keep">
+            ${savageText}
+          </p>
+        </div>
+      `;
+    }
+
+  } else {
+    // [단톡방 종합 포토카드 모드 - 다채롭고 풍부한 인포그래픽 리포트]
+    if (categoryTag) categoryTag.innerText = "CTI GROUP REPORT";
+    if (subHeader) subHeader.innerText = `${currentData.roomName || '단톡방'} • ${currentData.dateRange || '전체 기간'}`;
+    if (badgeRight) badgeRight.innerText = `우정 ${currentData.groupGrade || 'S+'}`;
+
+    if (heroSection) heroSection.classList.add("hidden");
+
+    if (bodySection) {
+      // 1. 핵심 4대 스탯 (총 대화량, 최다 발화러, 골든타임, 평화지수)
+      const topTalker = (currentData.members && currentData.members.length > 0) ? currentData.members[0] : null;
+      const peakTime = (currentData.activity && currentData.activity.peakHour) 
+        ? `${currentData.activity.peakWeekday ? currentData.activity.peakWeekday + ' ' : ''}${currentData.activity.peakHour}`
+        : (topTalker && topTalker.activeHours ? topTalker.activeHours : "심야 22시");
+      const peace = currentData.peaceIndex !== undefined ? currentData.peaceIndex : 100;
+
+      // 2. 단톡방 핫 키워드 TOP 4
+      let hotKeywords = [];
+      if (currentData.keywords && currentData.keywords.roomKeywords && currentData.keywords.roomKeywords.length > 0) {
+        hotKeywords = currentData.keywords.roomKeywords.slice(0, 4).map(k => typeof k === 'string' ? k : k.word);
+      } else {
+        const wordMap = {};
+        (currentData.members || []).forEach(m => {
+          (m.signatures || []).forEach(s => { wordMap[s] = (wordMap[s] || 0) + 1; });
+          (m.topWords || []).forEach(w => { wordMap[w.word] = (wordMap[w.word] || 0) + (w.count || 1); });
+        });
+        hotKeywords = Object.entries(wordMap).sort((a, b) => b[1] - a[1]).slice(0, 4).map(x => x[0]);
+      }
+      const kwPills = hotKeywords.map(w => `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#16202a] text-[#f5b73d] border border-[#f5b73d]/30 whitespace-nowrap">#${w}</span>`).join(" ");
+
+      // 3. 1:1 베스트 듀오 정보
+      const topPair = (currentData.pairRankings && currentData.pairRankings.length > 0) ? currentData.pairRankings[0] : null;
+
+      // 4. 멤버 라인업 (상위 4인 캐릭터 카드)
+      const memberChips = (currentData.members || []).slice(0, 4).map(m => {
+        const cInfo = getCharData(m.cti);
+        return `
+          <div class="bg-[#0c1218]/90 border border-white/[0.08] rounded-xl p-1.5 flex items-center gap-2">
+            <div class="w-9 h-9 rounded-lg bg-gradient-to-b from-[#1c2734] to-[#0c131a] border border-white/[0.1] flex items-center justify-center p-0.5 shrink-0 overflow-hidden">
+              <img src="${cInfo.img}" class="w-full h-full object-contain">
+            </div>
+            <div class="min-w-0 flex-grow text-left">
+              <div class="flex items-center gap-1">
+                <span class="text-[11px] font-bold text-white truncate">${m.name}</span>
+                <span class="text-[8px] font-mono font-extrabold px-1 rounded text-[#030708]" style="background-color: ${cInfo.color || '#f5b73d'};">${m.cti}</span>
+              </div>
+              <p class="text-[9px] text-[#848c96] truncate">${m.title || cInfo.name}</p>
+            </div>
+            <span class="text-[9px] font-mono font-bold text-[#f5b73d] pr-1 shrink-0">${m.msgRatio}%</span>
+          </div>
+        `;
+      }).join("");
+
+      bodySection.innerHTML = `
+        <div class="space-y-2 text-left">
+          <!-- [A] 단톡방 4대 핵심 지표 (2x2 그리드, 줄바꿈 및 받침 잘림 방지) -->
+          <div class="grid grid-cols-2 gap-1.5">
+            <div class="bg-[#090e13]/90 border border-white/[0.08] rounded-xl p-2 text-left">
+              <span class="text-[9px] text-[#848c96] font-bold block whitespace-nowrap">💬 총 대화량</span>
+              <p class="text-xs font-black text-white mt-0.5 whitespace-nowrap break-keep leading-normal pb-0.5">
+                ${(currentData.totalMessages || 0).toLocaleString()}건
+              </p>
+            </div>
+            <div class="bg-[#090e13]/90 border border-white/[0.08] rounded-xl p-2 text-left">
+              <span class="text-[9px] text-[#848c96] font-bold block whitespace-nowrap">👑 최다 발화러</span>
+              <p class="text-xs font-black text-white mt-0.5 whitespace-nowrap break-keep leading-normal pb-0.5">
+                ${topTalker ? topTalker.name : '대화러'} <span class="text-[10px] text-[#f5b73d]">(${topTalker ? topTalker.msgRatio : 0}%)</span>
+              </p>
+            </div>
+            <div class="bg-[#090e13]/90 border border-white/[0.08] rounded-xl p-2 text-left">
+              <span class="text-[9px] text-[#848c96] font-bold block whitespace-nowrap">⏰ 활성 골든타임</span>
+              <p class="text-xs font-black text-white mt-0.5 whitespace-nowrap break-keep leading-normal pb-0.5">
+                ${peakTime}
+              </p>
+            </div>
+            <div class="bg-[#090e13]/90 border border-white/[0.08] rounded-xl p-2 text-left">
+              <span class="text-[9px] text-[#848c96] font-bold block whitespace-nowrap">🌿 청정 평화지수</span>
+              <p class="text-xs font-black text-emerald-400 mt-0.5 whitespace-nowrap break-keep leading-normal pb-0.5">
+                ${peace}% <span class="text-[10px] text-[#848c96]">(${peace >= 90 ? '갈등 0%' : '정색 주의'})</span>
+              </p>
+            </div>
+          </div>
+
+          <!-- [B] 단톡방 CTI 페르소나 라인업 (손그림 캐릭터 4인) -->
+          <div>
+            <div class="flex items-center justify-between mb-1 px-0.5">
+              <span class="text-[9px] font-bold text-[#848c96] uppercase tracking-wider flex items-center gap-1 whitespace-nowrap">
+                <span>👥</span> 단톡방 CTI 페르소나 라인업
+              </span>
+              <span class="text-[9px] text-[#848c96] font-mono">${(currentData.members || []).length}명 분석</span>
+            </div>
+            <div class="grid grid-cols-2 gap-1.5">
+              ${memberChips}
+            </div>
+          </div>
+
+          <!-- [C] 핫 토픽 키워드 -->
+          <div class="bg-[#090e13]/90 border border-white/[0.08] rounded-xl p-2">
+            <span class="text-[9px] font-bold text-[#848c96] uppercase tracking-wider flex items-center gap-1 mb-1 whitespace-nowrap">
+              <span>🔥</span> 단톡방 최다 언급 핫토픽
+            </span>
+            <div class="flex flex-wrap gap-1 items-center">
+              ${kwPills || '<span class="text-[10px] text-[#848c96]">#단톡방 #티키타카</span>'}
+            </div>
+          </div>
+
+          <!-- [D] 1:1 최강 영혼의 단짝 -->
+          ${topPair ? `
+            <div class="bg-gradient-to-r from-[rgba(139,92,246,0.15)] to-[rgba(245,183,61,0.15)] border border-[rgba(139,92,246,0.3)] rounded-xl p-2 flex items-center justify-between">
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="text-base shrink-0">🏆</span>
+                <div class="min-w-0 text-left">
+                  <div class="flex items-center gap-1 whitespace-nowrap">
+                    <span class="text-[9px] text-[#8b5cf6] font-extrabold uppercase">최강 소울 듀오</span>
+                    <span class="text-[11px] font-black text-white">${topPair.pair[0]} ↔ ${topPair.pair[1]}</span>
+                  </div>
+                  <p class="text-[9px] text-[#848c96] truncate">${topPair.summary || '환상의 티키타카 호흡'}</p>
+                </div>
+              </div>
+              <span class="text-[11px] font-mono font-black text-[#f5b73d] bg-[#f5b73d]/15 px-2 py-0.5 rounded-full shrink-0 border border-[#f5b73d]/30">${topPair.score}점</span>
+            </div>
+          ` : ''}
+
+          <!-- [E] 단톡방 바이브 한 줄 평 -->
+          <div class="p-2 rounded-xl bg-[#090e13]/80 border border-white/[0.08] text-center">
+            <p class="text-[10px] text-[#f6f8fa] font-medium leading-relaxed italic break-keep">
+              "${currentData.groupVibe || '영혼의 찰떡 단톡방!'}"
+            </p>
+          </div>
+        </div>
+      `;
+    }
+  }
+
+  setShareRatio(currentShareRatio || "story");
 }
 
 function setShareRatio(ratio) {
@@ -1370,36 +1893,198 @@ function setShareRatio(ratio) {
   if (!canvas || !btnStory || !btnSquare) return;
 
   if (ratio === "story") {
-    canvas.style.width = "380px";
+    canvas.style.width = "360px";
     canvas.style.minHeight = "600px";
-    btnStory.className = "px-4 py-2 rounded-[20px] text-xs font-medium bg-[#f5b73d] text-white flex items-center gap-1.5 shadow-sm";
-    btnSquare.className = "px-4 py-2 rounded-[20px] text-xs font-medium border border-white/[0.08] bg-[#111820] text-[#f6f8fa] flex items-center gap-1.5 hover:bg-[#16202a]";
+    btnStory.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-[#16202a] text-[#f5b73d] border border-[#f5b73d]/40 flex items-center gap-1 shadow-sm";
+    btnSquare.className = "px-3 py-1.5 rounded-full text-xs font-medium border border-white/[0.08] bg-[#111820] text-[#848c96] hover:text-[#f6f8fa] flex items-center gap-1";
   } else {
-    canvas.style.width = "420px";
-    canvas.style.minHeight = "460px";
-    btnSquare.className = "px-4 py-2 rounded-[20px] text-xs font-medium bg-[#f5b73d] text-white flex items-center gap-1.5 shadow-sm";
-    btnStory.className = "px-4 py-2 rounded-[20px] text-xs font-medium border border-white/[0.08] bg-[#111820] text-[#f6f8fa] flex items-center gap-1.5 hover:bg-[#16202a]";
+    canvas.style.width = "380px";
+    canvas.style.minHeight = "520px";
+    btnSquare.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-[#16202a] text-[#f5b73d] border border-[#f5b73d]/40 flex items-center gap-1 shadow-sm";
+    btnStory.className = "px-3 py-1.5 rounded-full text-xs font-medium border border-white/[0.08] bg-[#111820] text-[#848c96] hover:text-[#f6f8fa] flex items-center gap-1";
   }
 }
 
-function downloadShareCard() {
+async function downloadShareCard() {
   const canvasTarget = document.getElementById("shareCardCanvas");
   if (!canvasTarget) return;
 
-  html2canvas(canvasTarget, {
-    scale: 2.5,
-    useCORS: true,
-    backgroundColor: "#0f172a"
-  }).then(canvas => {
-    const link = document.createElement("a");
-    const safeTitle = (currentData.roomName || "단톡방").replace(/[\\/:*?"<>|]/g, "_");
-    link.download = `[CTI_포토카드]_${safeTitle}_${currentShareRatio}.png`;
-    link.href = canvas.toDataURL("image/png");
-    link.click();
-    triggerConfetti();
-  }).catch(err => {
+  // 1. 폰트 로딩 완료 보장 (폰트 미로딩으로 인한 텍스트 밀림 방지)
+  if (document.fonts && document.fonts.ready) {
+    try {
+      await document.fonts.ready;
+    } catch (e) {
+      console.warn("Fonts ready check warning:", e);
+    }
+  }
+
+  const currentMember = (currentData && currentData.members && currentData.members[currentCardMemberIndex]) 
+    ? currentData.members[currentCardMemberIndex].name 
+    : "포토카드";
+
+  const prefix = currentCardMode === "personal" ? `[CTI_포토카드]_${currentMember}` : `[CTI_단톡방]_${currentData.roomName || '리포트'}`;
+  const safeTitle = prefix.replace(/[\\/:*?"<>|]/g, "_");
+
+  try {
+    // 2. html2canvas 정밀 캡처 (스크롤 오프셋 0 및 복제 엘리먼트 위치 안정화)
+    const canvas = await html2canvas(canvasTarget, {
+      scale: 2.5,
+      useCORS: true,
+      allowTaint: false,
+      backgroundColor: "#090e13",
+      scrollX: 0,
+      scrollY: 0,
+      windowWidth: document.documentElement.offsetWidth,
+      windowHeight: document.documentElement.offsetHeight,
+      logging: false,
+      onclone: (clonedDoc) => {
+        const clonedCard = clonedDoc.getElementById("shareCardCanvas");
+        if (clonedCard) {
+          clonedCard.style.margin = "0";
+          clonedCard.style.transform = "none";
+          clonedCard.style.boxShadow = "none";
+          clonedCard.style.fontFamily = "'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif";
+          clonedCard.style.letterSpacing = "normal";
+
+          // 모든 하위 텍스트 요소의 클리핑 방지 및 정렬 보정
+          const allEls = clonedCard.querySelectorAll("*");
+          allEls.forEach(el => {
+            el.style.letterSpacing = "normal";
+            el.style.textRendering = "geometricPrecision";
+            if (el.classList.contains("truncate")) {
+              el.style.overflow = "visible";
+              el.style.textOverflow = "clip";
+            }
+          });
+        }
+      }
+    });
+
+    // 3. toDataURL 시도 및 Tainted Canvas 방어용 toBlob 폴백
+    let dataUrl;
+    try {
+      dataUrl = canvas.toDataURL("image/png");
+      const link = document.createElement("a");
+      link.download = `${safeTitle}_${currentShareRatio}.png`;
+      link.href = dataUrl;
+      link.click();
+      triggerConfetti();
+    } catch (taintErr) {
+      console.warn("toDataURL fallback triggered:", taintErr);
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          alert("이미지 생성에 실패했습니다: " + taintErr.message);
+          return;
+        }
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.download = `${safeTitle}_${currentShareRatio}.png`;
+        link.href = blobUrl;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+        triggerConfetti();
+      }, "image/png");
+    }
+  } catch (err) {
+    console.error("Share card export error:", err);
     alert("이미지 생성에 실패했습니다: " + err.message);
-  });
+  }
+}
+
+// 모바일 웹 공유 및 데스크톱 클립보드 복사 지원
+async function shareOrCopyCard() {
+  const canvasTarget = document.getElementById("shareCardCanvas");
+  if (!canvasTarget) return;
+
+  if (document.fonts && document.fonts.ready) {
+    try { await document.fonts.ready; } catch (e) {}
+  }
+
+  const currentMember = (currentData && currentData.members && currentData.members[currentCardMemberIndex]) 
+    ? currentData.members[currentCardMemberIndex].name 
+    : "포토카드";
+
+  const prefix = currentCardMode === "personal" ? `[CTI_포토카드]_${currentMember}` : `[CTI_단톡방]_${currentData.roomName || '리포트'}`;
+  const safeTitle = prefix.replace(/[\\/:*?"<>|]/g, "_");
+
+  try {
+    const canvas = await html2canvas(canvasTarget, {
+      scale: 2.5,
+      useCORS: true,
+      allowTaint: false,
+      backgroundColor: "#090e13",
+      scrollX: 0,
+      scrollY: 0,
+      windowWidth: document.documentElement.offsetWidth,
+      windowHeight: document.documentElement.offsetHeight,
+      logging: false,
+      onclone: (clonedDoc) => {
+        const clonedCard = clonedDoc.getElementById("shareCardCanvas");
+        if (clonedCard) {
+          clonedCard.style.margin = "0";
+          clonedCard.style.transform = "none";
+          clonedCard.style.boxShadow = "none";
+          clonedCard.style.fontFamily = "'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif";
+          clonedCard.style.letterSpacing = "normal";
+
+          // 모든 하위 텍스트 요소의 클리핑 방지 및 정렬 보정
+          const allEls = clonedCard.querySelectorAll("*");
+          allEls.forEach(el => {
+            el.style.letterSpacing = "normal";
+            el.style.textRendering = "geometricPrecision";
+            if (el.classList.contains("truncate")) {
+              el.style.overflow = "visible";
+              el.style.textOverflow = "clip";
+            }
+          });
+        }
+      }
+    });
+
+    canvas.toBlob(async (blob) => {
+      if (!blob) {
+        downloadShareCard();
+        return;
+      }
+      const file = new File([blob], `${safeTitle}.png`, { type: "image/png" });
+      
+      // 1. 모바일 Web Share API 지원 시 (카카오톡, 인스타그램 스토리 등 공유 시트 호출)
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: safeTitle,
+            text: "카카오톡 CTI 대화 성향 분석 포토카드"
+          });
+          triggerConfetti();
+          return;
+        } catch (shareErr) {
+          if (shareErr.name === "AbortError") return;
+        }
+      }
+
+      // 2. 데스크톱 클립보드 API 지원 시 이미지 바이너리 복사 (PC 카카오톡 등에 Ctrl+V 즉시 전송 가능)
+      if (navigator.clipboard && window.ClipboardItem) {
+        try {
+          await navigator.clipboard.write([
+            new ClipboardItem({ "image/png": blob })
+          ]);
+          alert("📸 포토카드 이미지가 클립보드에 복사되었습니다!\n카카오톡이나 메신저 대화창에 바로 붙여넣기(Ctrl+V) 하실 수 있습니다.");
+          triggerConfetti();
+          return;
+        } catch (clipErr) {
+          console.warn("Clipboard copy failed, fallback to download:", clipErr);
+        }
+      }
+
+      // 3. 폴백: PNG 다운로드
+      downloadShareCard();
+    }, "image/png");
+
+  } catch (err) {
+    console.error("shareOrCopyCard error:", err);
+    downloadShareCard();
+  }
 }
 
 // ==================== 대화 내보내기 방법 가이드 모달 ====================
