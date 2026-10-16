@@ -199,6 +199,8 @@ window.KAKAO_PARSER = {
         receptiveHits: 0,
         taskHits: 0,
         emotionHits: 0,
+        affectionHits: 0,    // 호감·애정 표현 어휘
+        tokenAgreementHits: 0, // 무임승차성 형식적 단답 ("네", "좋아요", "ㅇㅇ" 등)
         banterHits: 0,       // 친밀 장난 욕설
         coldHits: 0,         // 진짜 정색/기싸움
         hours: Array(24).fill(0),
@@ -300,11 +302,15 @@ window.KAKAO_PARSER = {
         st.banterHits++;
       }
 
-      // 성향 판별 키워드 집계
+      // 성향 판별 및 학술 지표 키워드 집계
       if (hasSwear || hasConflict) st.assertiveHits++;
       if (/(아하|맞지|맞아|오호|그렇네|좋아|미띤|인정|ㅇㅋ|ㅋㅋ|레전드|대박|굳|보듬을|고마워|감사|ㅠㅠ|동의)/.test(text)) st.receptiveHits++;
-      if (/(몇시|어디|만나|모여|운동|정산|비용|도착|조퇴|퇴근|과제|시험|출발|기상|수업|발표|셔틀|버스|얼마)/.test(text)) st.taskHits++;
+      if (/(몇시|어디|만나|모여|운동|정산|비용|도착|조퇴|퇴근|과제|시험|출발|기상|수업|발표|셔틀|버스|얼마|자료|조사|피피티|ppt|PPT|제출|마감|정리|수정|취합|공유|파일|링크|초안|대본|목차|참고|논문|분담|파트|회의|줌|구글독스|노션)/.test(text)) st.taskHits++;
       if (/(피곤|힘들|짜증|화나|개꿀|망함|살려|배고파|기분|자고싶|똥|죽겠|파국|졸려|아파|슬프|서러)/.test(text)) st.emotionHits++;
+      if (/(보고싶|좋아해|사랑|귀여|귀엽|설레|고마워|최고|행복|잘자|굿나잇|화이팅|응원|맛있겠|같이|가자|데려다|걱정|조심|챙겨|예쁘|이쁘|멋있|감동|두근|하트|♡|♥)/.test(text)) st.affectionHits++;
+      if (textLen <= 8 && /^(네+|넵+|넹+|예+|ㅇㅇ+|ㅇㅋ+|오키|오케이|좋아요|좋습니다|알겠습니다|확인|감사합니다|고생하셨습니다|수고하셨습니다|동의합니다|찬성|굿|굳|ㄱㄱ)[.!~ㅋㅎ\s]*$/.test(text.trim())) {
+        st.tokenAgreementHits++;
+      }
 
       // 실제 참여자 이름 호명(멘션) 집계
       for (let sIdx = 0; sIdx < validSenders.length; sIdx++) {
@@ -432,7 +438,7 @@ window.KAKAO_PARSER = {
       const earlyCount = st.hours.slice(6, 10).reduce((a, b) => a + b, 0);
       const owlRatio = count > 0 ? Number(((owlCount / count) * 100).toFixed(1)) : 0;
       const earlyRatio = count > 0 ? Number(((earlyCount / count) * 100).toFixed(1)) : 0;
-      const timePersona = owlRatio >= 8 ? "새벽의 망령 👻" : earlyRatio >= 12 ? "아침 기상 선발대 🌅" : "오후~저녁의 전사 ⚔️";
+      const timePersona = owlRatio >= 8 ? "새벽의 망령 👻" : earlyRatio >= 12 ? "아침 기상 선발대 🌅" : "오후-저녁의 전사 ⚔️";
 
       const topWords = Object.entries(st.words || {})
         .sort((a, b) => b[1] - a[1])
@@ -499,6 +505,13 @@ window.KAKAO_PARSER = {
         photos: st.photos,
         banterHits: st.banterHits,
         coldHits: st.coldHits,
+        shortMsgs: st.shortMsgs,
+        taskHits: st.taskHits,
+        emotionHits: st.emotionHits,
+        receptiveHits: st.receptiveHits,
+        assertiveHits: st.assertiveHits,
+        affectionHits: st.affectionHits,
+        tokenAgreementHits: st.tokenAgreementHits,
         activeHours: `${maxHour}시 피크`,
         hourly: st.hours,
         topWords: topWords,
@@ -674,10 +687,41 @@ window.KAKAO_PARSER = {
       groupVibe = `서로의 일상과 관심사를 부담 없이 나누며 편안한 균형을 유지하는 '안정형 찰떡 단톡방'입니다. 각자의 대화 템포를 존중하며 롱런하는 우정의 표본입니다.`;
     }
 
-    return {
+    const m0 = members[0] || { name: "참여자A", quotes: ["오늘 하루도 고생 많았어요!"] };
+    const m1 = members[1] || m0;
+    const mLast = members[members.length - 1] || m1;
+
+    const autoRomanceHighlights = [
+      {
+        stage: "하이라이트 01 • 빠른 답장과 다정한 티키타카",
+        time: `대화가 가장 활발한 시간 (${peakHour}시 전후)`,
+        academicNote: "빠른 답장과 먼저 건네는 질문이 이어지며 서로에게 높은 호감을 보이는 구간",
+        messages: [
+          { sender: m0.name, side: "left", text: (m0.quotes && m0.quotes[0]) || "오늘 뭐 했어? 하루 종일 생각나더라 ㅎㅎ" },
+          { sender: m1.name, side: "right", text: (m1.quotes && m1.quotes[0]) || "나도 방금 연락하려던 참이었어! 오늘 진짜 반가웠어 ㅎㅎ" },
+          { sender: m0.name, side: "left", text: (m0.quotes && m0.quotes[1]) || "우리 주말에 맛있는 거 먹으러 갈래?" },
+          { sender: m1.name, side: "right", text: (m1.quotes && m1.quotes[1]) || "완전 좋지!! 얼른 주말 됐으면 좋겠다!" }
+        ]
+      }
+    ];
+
+    const autoVillainEvidence = [
+      {
+        title: "증거 01 • 열심히 일하는 조원 vs 영혼 없는 단답 비교",
+        date: `${startDate} - ${endDate} 실제 대화 기록`,
+        academicNote: "실제 의견·자료를 내는 조원과 '넵' 한마디로 넘어가는 조원의 대화 온도차",
+        messages: [
+          { sender: m0.name, role: "LEADER", text: (m0.quotes && m0.quotes[0]) || "이번 파트 자료 취합해서 공유합니다. 확인 부탁드려요!" },
+          ...(members.length > 2 ? [{ sender: m1.name, role: "ACE", text: (m1.quotes && m1.quotes[0]) || "제가 추가 수정본 정리해서 올릴게요!" }] : []),
+          { sender: mLast.name, role: "VILLAIN", text: (mLast.quotes && mLast.quotes[0]) || "넵 확인했습니다 좋습니다" }
+        ]
+      }
+    ];
+
+    const reportObj = {
       roomName: "카카오톡 대화 분석 리포트",
       totalMessages: totalHumanMsgs,
-      dateRange: `${startDate} ~ ${endDate}`,
+      dateRange: `${startDate} - ${endDate}`,
       tensionIndex: tensionIndex,
       peaceIndex: peaceIndex,
       tensionDesc: tensionDesc,
@@ -685,6 +729,8 @@ window.KAKAO_PARSER = {
       groupVibe: groupVibe,
       members: members,
       pairRankings: pairRankings,
+      romanceHighlights: autoRomanceHighlights,
+      villainEvidenceLogs: autoVillainEvidence,
       activity: {
         hourly: roomHours,
         weekday: weekdayCounts,
@@ -693,6 +739,124 @@ window.KAKAO_PARSER = {
       },
       keywords: {
         roomKeywords: topRoomKeywords
+      }
+    };
+
+    reportObj.academicMetrics = this.computeAcademicMetrics(reportObj);
+    return reportObj;
+  },
+
+  // 3대 모드 정밀 지표 산출기 (실제 파싱 데이터 및 샘플 데이터 공용)
+  computeAcademicMetrics: function(report) {
+    const members = report.members || [];
+    const n = members.length || 1;
+    const totalMsgs = report.totalMessages || members.reduce((s, m) => s + (m.totalMsgs || 0), 0) || 1;
+
+    // 1. [단톡방 전체 케미] 말투 닮은 정도 & 대화 골고루 참여하는 비율
+    let entropySum = 0;
+    members.forEach(m => {
+      const p = (m.totalMsgs || 1) / totalMsgs;
+      if (p > 0) entropySum -= p * Math.log(p);
+    });
+    const maxEntropy = n > 1 ? Math.log(n) : 1;
+    const turnTakingBalance = n > 1 ? Math.min(100, Math.max(20, Math.round((entropySum / maxEntropy) * 100))) : 85;
+
+    const meanLen = members.reduce((s, m) => s + (m.avgLen || 10), 0) / n;
+    const meanLaughRate = members.reduce((s, m) => s + ((m.laughs || 0) / (m.totalMsgs || 1)), 0) / n;
+    const meanQRate = members.reduce((s, m) => s + ((m.questions || 0) / (m.totalMsgs || 1)), 0) / n;
+
+    let lsmTotal = 0;
+    members.forEach(m => {
+      const mLaugh = (m.laughs || 0) / (m.totalMsgs || 1);
+      const mQ = (m.questions || 0) / (m.totalMsgs || 1);
+      const lsmLen = 1 - Math.abs((m.avgLen || 10) - meanLen) / ((m.avgLen || 10) + meanLen + 0.01);
+      const lsmLaugh = 1 - Math.abs(mLaugh - meanLaughRate) / (mLaugh + meanLaughRate + 0.01);
+      const lsmQ = 1 - Math.abs(mQ - meanQRate) / (mQ + meanQRate + 0.01);
+      m.lsmIndividual = Math.round(((lsmLen * 0.4 + lsmLaugh * 0.35 + lsmQ * 0.25)) * 100);
+      lsmTotal += m.lsmIndividual;
+    });
+    const groupLsmScore = Math.min(99, Math.max(45, Math.round(lsmTotal / n)));
+    const groupCohesionIndex = Math.round(groupLsmScore * 0.55 + turnTakingBalance * 0.45);
+
+    // 2. [조별과제 빌런 탐지] 실제 과제 참여 점수 vs 무임승차 위험도 & 영혼 없는 대답 비율
+    const fairShare = 100 / n;
+    const villainProfiles = members.map(m => {
+      const cnt = m.totalMsgs || 1;
+      const taskCnt = m.taskHits !== undefined ? m.taskHits : Math.round(cnt * (m.cti && m.cti.includes("T") ? 0.16 : 0.06));
+      const tokenCnt = m.tokenAgreementHits !== undefined ? m.tokenAgreementHits : Math.round(cnt * (m.avgLen < 9 ? 0.28 : 0.08));
+      const shortCnt = m.shortMsgs !== undefined ? m.shortMsgs : Math.round(cnt * (m.avgLen < 10 ? 0.55 : 0.25));
+
+      const taskActRaw = taskCnt * 3.2 + (m.questions || 0) * 1.1 + (m.photos || 0) * 2.0 + (m.starters || 0) * 2.5;
+      const taskRatio = Math.min(96, Math.max(12, Math.round((taskActRaw / cnt) * 100)));
+      const tokenRatio = Math.min(88, Math.max(4, Math.round(((tokenCnt * 2.2 + shortCnt * 0.35) / cnt) * 100)));
+
+      const shareDeficit = Math.max(0, (fairShare - (m.msgRatio || 0)) / fairShare) * 45;
+      const latencyPenalty = Math.min(25, Math.max(0, ((m.replySpeed || 15) - 5) * 0.9));
+      const tokenPenalty = tokenRatio * 0.35;
+      const starterBonus = Math.min(25, (m.starters || 0) * 1.2);
+      const lengthBonus = Math.min(15, Math.max(0, ((m.avgLen || 10) - 10) * 1.1));
+
+      const loafingScore = Math.min(96, Math.max(5, Math.round(32 + shareDeficit + latencyPenalty + tokenPenalty - starterBonus - lengthBonus)));
+      const contributionScore = 100 - loafingScore;
+
+      let grade = "B";
+      let roleBadge = "🤝 제 몫 챙긴 일반 조원";
+      let diagnosis = "";
+
+      if (contributionScore >= 84) {
+        grade = "A+";
+        roleBadge = "👑 멱살 잡고 캐리한 총대장";
+        diagnosis = `시상식대 1등석 주인! 회의 진행과 자료 정리를 독박 쓰며 쓰러져가는 팀을 멱살 잡고 구해낸 하드캐리 총대장입니다! (먼저 의견 제시 ${m.starters}회 · 평균 ${m.avgLen}자)`;
+      } else if (contributionScore >= 70) {
+        grade = "A";
+        roleBadge = "⚡ 칼답 실무 에이스";
+        diagnosis = `시상식대 상위권 주역! 빠른 답장(${m.replySpeed || 12}분)과 적극적인 의견 제시로 과제를 막힘없이 밀어붙인 실무 에이스입니다!`;
+      } else if (contributionScore >= 54) {
+        grade = "B+";
+        roleBadge = "🤝 1인분 해낸 든든 조원";
+        diagnosis = `시상식대 단상 합류! 꾸준한 대화 참여(${m.msgRatio}%)와 호응으로 자기 몫을 안정적으로 해낸 든든한 팀원입니다.`;
+      } else if (tokenRatio >= 35) {
+        grade = "C-";
+        roleBadge = "🦜 영혼 없는 네무새 버러지";
+        diagnosis = `시상식대 밑바닥 기어다니는 중! 의견 제시 없이 '넵', '좋아요' 같은 영혼 없는 단답(${tokenRatio}%)만 복붙하며 무임승차하고 있습니다!`;
+      } else {
+        grade = "F";
+        roleBadge = "🐛 바닥 기어다니는 무임승차 빌런";
+        diagnosis = `시상식대 밑바닥 서식 중! 대화 참여율(${m.msgRatio}%)이 처참하고 답장도 ${m.replySpeed || 25}분 이상 잠수 타며 남의 학점에 기생하는 무임승차 빌런입니다!`;
+      }
+
+      return {
+        id: m.id || m.name,
+        name: m.name,
+        cti: m.cti,
+        msgRatio: m.msgRatio,
+        avgLen: m.avgLen,
+        starters: m.starters,
+        replySpeed: m.replySpeed || 15,
+        taskRatio,
+        tokenRatio,
+        loafingScore,
+        contributionScore,
+        grade,
+        roleBadge,
+        diagnosis
+      };
+    });
+
+    const sortedByLoafing = [...villainProfiles].sort((a, b) => b.loafingScore - a.loafingScore);
+    const sortedByContrib = [...villainProfiles].sort((a, b) => b.contributionScore - a.contributionScore);
+
+    return {
+      chemistry: {
+        groupLsmScore,
+        turnTakingBalance,
+        groupCohesionIndex
+      },
+      villain: {
+        profiles: villainProfiles,
+        topVillain: sortedByLoafing[0] || null,
+        topHero: sortedByContrib[0] || null,
+        fairShare: Number(fairShare.toFixed(1))
       }
     };
   }
