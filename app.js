@@ -3,6 +3,11 @@
 let currentData = null;
 let radarCharts = {};
 let isAnonymized = false;
+let isNameMasked = false; // 전역 이름 가리기 상태 (isAnonymized와 동기화)
+let isSampleMode = false; // 샘플 체험 모드 여부
+let cachedRawText = null; // 업로드된 .txt 원문 캐시
+let cachedFileName = null; // 업로드된 파일명 캐시
+let isVillainMildMode = false; // 모드 3 순한맛(평화 모드) 여부
 let originalDataCache = null;
 let myMemberId = null; // '나'로 지정된 멤버 고유 ID
 let focusedMemberId = null; // 현재 상세 분석 탭에서 포커스된 멤버
@@ -12,8 +17,234 @@ let selectedAnalysisMode = "chemistry"; // 'chemistry' | 'romance' | 'villain'
 let selectedRomancePair = [0, 1]; // 썸·연인 모드 비교 대상 인덱스 [A, B]
 let currentRomanceSubTab = "summary"; // 'summary' | 'signals' | 'mind' | 'highlights'
 let currentVillainSubTab = "ranking"; // 'ranking' | 'spotlight' | 'evidence' | 'peer'
-let currentVillainSort = "villain"; // 'villain' | 'contribution'
+let currentVillainSort = "contribution"; // 'contribution' | 'villain' (기본값: 기여도 순)
 let isLightMode = false;
+
+// 공통 이름 마스킹 포맷 함수 (김민지 -> 김○지, 민우 -> 민○)
+function formatName(name, masked = isNameMasked) {
+  if (!name || typeof name !== "string") return name || "";
+  if (!masked) return name;
+  const trimmed = name.trim();
+  const chars = Array.from(trimmed);
+  if (chars.length <= 1) return trimmed;
+  if (chars.length === 2) return `${chars[0]}○`;
+  if (chars.length === 3) return `${chars[0]}○${chars[2]}`;
+  return `${chars[0]}${"○".repeat(Math.min(chars.length - 2, 2))}${chars[chars.length - 1]}`;
+}
+
+// 문장 내 등장하는 모든 멤버 실명(및 3글자 이름의 성 제외 2글자 호칭)을 마스킹
+function maskNamesInText(text, masked = isNameMasked) {
+  if (!text || typeof text !== "string" || !masked || !originalDataCache || !Array.isArray(originalDataCache.members)) {
+    return text;
+  }
+  let out = text;
+  const replacements = [];
+  originalDataCache.members.forEach((m) => {
+    const rawName = (m && m.name) ? String(m.name).trim() : "";
+    if (!rawName) return;
+    replacements.push({ from: rawName, to: formatName(rawName, true) });
+    const chars = Array.from(rawName);
+    // 3글자 한국어 이름(예: 박준영, 김민지)이 대화문에서 '준영아', '민지님' 등으로 쓰인 경우 함께 마스킹
+    if (chars.length === 3) {
+      const givenName = chars.slice(1).join("");
+      if (givenName.length === 2) {
+        replacements.push({ from: givenName, to: `${chars[1]}○` });
+      }
+    }
+  });
+  replacements.sort((a, b) => b.from.length - a.from.length);
+  replacements.forEach(({ from, to }) => {
+    if (from && out.includes(from)) {
+      out = out.split(from).join(to);
+    }
+  });
+  return out;
+}
+
+// 원본 데이터 캐시(originalDataCache)로부터 마스킹 상태가 반영된 데이터 객체 생성
+function buildDisplayDataFromCache(masked = isNameMasked) {
+  if (!originalDataCache) return null;
+  const shouldMask = typeof masked === "boolean" ? masked : isNameMasked;
+  const clone = JSON.parse(JSON.stringify(originalDataCache));
+  if (!shouldMask) return clone;
+
+  const nameMap = {};
+  (originalDataCache.members || []).forEach((m) => {
+    nameMap[m.name] = formatName(m.name, true);
+  });
+  const mapSingleName = (n) => (nameMap[n] ? nameMap[n] : formatName(n, true));
+
+  if (clone.roomName) {
+    clone.roomName = maskNamesInText(clone.roomName, true);
+  }
+  if (clone.groupVibe) {
+    clone.groupVibe = maskNamesInText(clone.groupVibe, true);
+  }
+
+  if (Array.isArray(clone.members)) {
+    clone.members.forEach((m) => {
+      m.name = mapSingleName(m.name);
+      if (m.bestMatch) m.bestMatch = mapSingleName(m.bestMatch);
+      if (m.worstMatch) m.worstMatch = mapSingleName(m.worstMatch);
+      if (m.factBomb) m.factBomb = maskNamesInText(m.factBomb, true);
+      if (m.bestMatchReason) m.bestMatchReason = maskNamesInText(m.bestMatchReason, true);
+      if (m.worstMatchReason) m.worstMatchReason = maskNamesInText(m.worstMatchReason, true);
+      if (Array.isArray(m.sampleQuotes)) {
+        m.sampleQuotes = m.sampleQuotes.map((q) => maskNamesInText(q, true));
+      }
+    });
+  }
+
+  if (Array.isArray(clone.pairRankings)) {
+    clone.pairRankings.forEach((p) => {
+      if (Array.isArray(p.pair)) {
+        p.pair = p.pair.map((n) => mapSingleName(n));
+      }
+      if (p.summary) p.summary = maskNamesInText(p.summary, true);
+      if (p.reason) p.reason = maskNamesInText(p.reason, true);
+    });
+  }
+
+  if (Array.isArray(clone.quotes)) {
+    clone.quotes.forEach((q) => {
+      if (q.speaker) q.speaker = mapSingleName(q.speaker);
+      if (q.text) q.text = maskNamesInText(q.text, true);
+      if (q.context) q.context = maskNamesInText(q.context, true);
+    });
+  }
+
+  if (Array.isArray(clone.romanceHighlights)) {
+    clone.romanceHighlights.forEach((h) => {
+      if (h.title) h.title = maskNamesInText(h.title, true);
+      if (h.aiComment) h.aiComment = maskNamesInText(h.aiComment, true);
+      if (Array.isArray(h.messages)) {
+        h.messages.forEach((msg) => {
+          if (msg.speaker) msg.speaker = mapSingleName(msg.speaker);
+          if (msg.text) msg.text = maskNamesInText(msg.text, true);
+        });
+      }
+    });
+  }
+
+  if (Array.isArray(clone.villainEvidenceLogs)) {
+    clone.villainEvidenceLogs.forEach((ev) => {
+      if (ev.suspect) ev.suspect = mapSingleName(ev.suspect);
+      if (ev.title) ev.title = maskNamesInText(ev.title, true);
+      if (ev.verdict) ev.verdict = maskNamesInText(ev.verdict, true);
+      if (Array.isArray(ev.messages)) {
+        ev.messages.forEach((msg) => {
+          if (msg.speaker) msg.speaker = mapSingleName(msg.speaker);
+          if (msg.text) msg.text = maskNamesInText(msg.text, true);
+        });
+      }
+    });
+  }
+
+  if (clone.academicMetrics) {
+    if (clone.academicMetrics.villain) {
+      const v = clone.academicMetrics.villain;
+      if (v.topCarry) v.topCarry = mapSingleName(v.topCarry);
+      if (v.topVillain) v.topVillain = mapSingleName(v.topVillain);
+      if (Array.isArray(v.profiles)) {
+        v.profiles.forEach((p) => {
+          if (p.name) p.name = mapSingleName(p.name);
+          if (p.diagnosis) p.diagnosis = maskNamesInText(p.diagnosis, true);
+          if (p.mildDiagnosis) p.mildDiagnosis = maskNamesInText(p.mildDiagnosis, true);
+        });
+      }
+    }
+    if (clone.academicMetrics.romance && clone.academicMetrics.romance.secretMind) {
+      const sm = clone.academicMetrics.romance.secretMind;
+      ["memberA", "memberB"].forEach((key) => {
+        if (sm[key]) {
+          if (sm[key].name) sm[key].name = mapSingleName(sm[key].name);
+          if (sm[key].surfaceStyle) sm[key].surfaceStyle = maskNamesInText(sm[key].surfaceStyle, true);
+          if (sm[key].innerTruth) sm[key].innerTruth = maskNamesInText(sm[key].innerTruth, true);
+          if (sm[key].fearTrigger) sm[key].fearTrigger = maskNamesInText(sm[key].fearTrigger, true);
+          if (sm[key].secretWish) sm[key].secretWish = maskNamesInText(sm[key].secretWish, true);
+        }
+      });
+      if (Array.isArray(sm.unspokenQuestions)) {
+        sm.unspokenQuestions.forEach((uq) => {
+          if (uq.from) uq.from = mapSingleName(uq.from);
+          if (uq.to) uq.to = mapSingleName(uq.to);
+          if (uq.q) uq.q = maskNamesInText(uq.q, true);
+          if (uq.a) uq.a = maskNamesInText(uq.a, true);
+        });
+      }
+    }
+  }
+
+  return clone;
+}
+
+// 글로벌 토스트(Toast) 알림 표시 함수
+function showToast(message, icon = "fa-circle-check", accentColor = "#f5b73d") {
+  const container = document.getElementById("toastContainer");
+  if (!container) return;
+
+  let resolvedIcon = icon;
+  let resolvedColor = accentColor;
+  if (icon === "loading") {
+    resolvedIcon = "fa-spinner fa-spin";
+    resolvedColor = "#38bdf8";
+  } else if (icon === "success") {
+    resolvedIcon = "fa-circle-check";
+    resolvedColor = "#10b981";
+  } else if (icon === "error") {
+    resolvedIcon = "fa-triangle-exclamation";
+    resolvedColor = "#f43f5e";
+  } else if (icon === "info") {
+    resolvedIcon = "fa-circle-info";
+    resolvedColor = "#f5b73d";
+  }
+
+  const toast = document.createElement("div");
+  toast.className = "pointer-events-auto flex items-center gap-2.5 px-4 py-3 rounded-2xl border shadow-2xl transition-all duration-300 opacity-0 translate-y-2 text-xs sm:text-sm font-bold";
+  if (isLightMode) {
+    toast.style.backgroundColor = "rgba(255, 255, 255, 0.98)";
+    toast.style.borderColor = "rgba(15, 23, 42, 0.15)";
+    toast.style.color = "#0f172a";
+  } else {
+    toast.style.backgroundColor = "rgba(17, 24, 32, 0.96)";
+    toast.style.borderColor = "rgba(245, 183, 61, 0.4)";
+    toast.style.color = "#f6f8fa";
+  }
+  toast.innerHTML = `
+    <i class="fa-solid ${resolvedIcon} text-base shrink-0" style="color: ${resolvedColor};"></i>
+    <span class="break-keep">${message}</span>
+  `;
+  container.appendChild(toast);
+  requestAnimationFrame(() => {
+    toast.classList.remove("opacity-0", "translate-y-2");
+    toast.classList.add("opacity-100", "translate-y-0");
+  });
+  setTimeout(() => {
+    toast.classList.remove("opacity-100", "translate-y-0");
+    toast.classList.add("opacity-0", "translate-y-2");
+    setTimeout(() => {
+      if (toast.parentNode) toast.parentNode.removeChild(toast);
+    }, 300);
+  }, 2900);
+}
+
+// 업로드 에러 배너 표시/숨김 함수
+function showUploadError(title, desc) {
+  const banner = document.getElementById("uploadErrorBanner");
+  const titleEl = document.getElementById("uploadErrorTitle");
+  const descEl = document.getElementById("uploadErrorDesc");
+  if (titleEl && title) titleEl.innerText = title;
+  if (descEl && desc) descEl.innerText = desc;
+  if (banner) {
+    banner.classList.remove("hidden");
+    banner.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+}
+
+function hideUploadError() {
+  const banner = document.getElementById("uploadErrorBanner");
+  if (banner) banner.classList.add("hidden");
+}
 
 // 화이트 모드 / 다크 모드 토글 및 동기화
 function initColorMode() {
@@ -34,6 +265,12 @@ function toggleColorMode() {
     localStorage.setItem("cti_color_mode", isLightMode ? "light" : "dark");
   } catch (e) {}
   syncColorModeButtons();
+  if (currentData) {
+    try {
+      renderActiveRadarChart();
+      renderActivityCharts();
+    } catch (e) {}
+  }
 }
 
 function syncColorModeButtons() {
@@ -204,11 +441,17 @@ function handleFileSelect(e) {
 }
 
 function processFile(file) {
-  if (!file.name.endsWith(".txt")) {
-    alert("카카오톡 대화 내용 내보내기 텍스트 파일(.txt)을 올려주세요.");
+  if (!file) return;
+  const lowerName = (file.name || "").toLowerCase();
+  if (!lowerName.endsWith(".txt")) {
+    showUploadError(
+      "지원하지 않는 파일 확장자입니다 (.txt 파일만 가능)",
+      `업로드하신 파일(${file.name})은 텍스트 파일이 아닙니다. 카카오톡 채팅방 설정의 [대화 내용 내보내기]를 통해 저장된 .txt 파일을 업로드해 주세요.`
+    );
     return;
   }
 
+  hideUploadError();
   const loadingOverlay = document.getElementById("loadingOverlay");
   const loadingSubText = document.getElementById("loadingSubText");
   if (loadingOverlay) {
@@ -224,24 +467,38 @@ function processFile(file) {
     setTimeout(() => {
       try {
         const text = evt.target.result;
+        if (!text || text.trim().length < 10) {
+          throw new Error("파일 내용이 비어 있거나 너무 짧습니다.");
+        }
         const report = window.KAKAO_PARSER.parseText(text);
-        report.roomName = file.name.replace(".txt", "").replace("KakaoTalk_", "카톡 대화방 ");
+        if (!report || !Array.isArray(report.members) || report.members.length === 0 || !report.totalMessages) {
+          throw new Error("카카오톡 대화 내역 패턴(날짜·시간·발화자)을 찾을 수 없습니다.");
+        }
+        report.roomName = file.name.replace(/\.txt$/i, "").replace("KakaoTalk_", "카톡 대화방 ");
         report.lockedMode = selectedAnalysisMode;
         
-        currentData = report;
+        isSampleMode = false;
+        cachedRawText = text;
+        cachedFileName = file.name;
         originalDataCache = JSON.parse(JSON.stringify(report));
         isAnonymized = false;
+        isNameMasked = false;
+        currentData = buildDisplayDataFromCache(false);
         focusedMemberId = null;
         selectedRomancePair = [0, 1];
         currentRomanceSubTab = "summary";
         currentVillainSubTab = "ranking";
+        villainGameSelectedMember = null;
         updateAnonymizeButtonText();
 
         showReportView();
         renderCurrentData();
         triggerConfetti();
       } catch (err) {
-        alert("파일 분석 실패: " + err.message);
+        showUploadError(
+          "카카오톡 대화 내보내기 형식이 아닙니다",
+          `${err.message || "유효한 카카오톡 대화 패턴을 인식하지 못했습니다."} 일반 메모 파일이 아닌 카카오톡 앱의 [대화 내용 내보내기] 기능으로 추출한 원본 .txt 파일인지 확인해 주세요.`
+        );
         console.error(err);
       } finally {
         if (loadingOverlay) loadingOverlay.classList.add("hidden");
@@ -263,20 +520,83 @@ function getSampleDataByMode(mode) {
 
 function loadSampleDemo(event) {
   if (event) event.stopPropagation();
+  hideUploadError();
+  isSampleMode = true;
+  cachedRawText = null;
+  cachedFileName = null;
   const targetSample = getSampleDataByMode(selectedAnalysisMode);
-  currentData = JSON.parse(JSON.stringify(targetSample));
-  currentData.lockedMode = selectedAnalysisMode;
-  originalDataCache = JSON.parse(JSON.stringify(currentData));
+  const sampleCopy = JSON.parse(JSON.stringify(targetSample));
+  sampleCopy.lockedMode = selectedAnalysisMode;
+  originalDataCache = JSON.parse(JSON.stringify(sampleCopy));
   isAnonymized = false;
+  isNameMasked = false;
+  currentData = buildDisplayDataFromCache(false);
   focusedMemberId = null;
   selectedRomancePair = [0, 1];
   currentRomanceSubTab = "summary";
   currentVillainSubTab = "ranking";
+  villainGameSelectedMember = null;
   updateAnonymizeButtonText();
 
   showReportView();
   renderCurrentData();
   triggerConfetti();
+}
+
+// 결과 화면에서 재업로드 없이 분석 모드 즉시 전환
+function switchReportMode(mode) {
+  if (!mode || !currentData) return;
+  selectedAnalysisMode = mode;
+  selectAnalysisMode(mode);
+
+  if (isSampleMode) {
+    const targetSample = getSampleDataByMode(mode);
+    const sampleCopy = JSON.parse(JSON.stringify(targetSample));
+    sampleCopy.lockedMode = mode;
+    originalDataCache = JSON.parse(JSON.stringify(sampleCopy));
+  } else if (originalDataCache) {
+    originalDataCache.lockedMode = mode;
+  } else if (cachedRawText && window.KAKAO_PARSER) {
+    const report = window.KAKAO_PARSER.parseText(cachedRawText);
+    report.roomName = (cachedFileName || "카톡 대화방").replace(/\.txt$/i, "").replace("KakaoTalk_", "카톡 대화방 ");
+    report.lockedMode = mode;
+    originalDataCache = JSON.parse(JSON.stringify(report));
+  }
+
+  currentData = buildDisplayDataFromCache(isNameMasked);
+  if (currentData) {
+    currentData.lockedMode = mode;
+    currentData.lockedAnalysisMode = mode;
+  }
+  focusedMemberId = null;
+  selectedRomancePair = [0, 1];
+  currentRomanceSubTab = "summary";
+  currentVillainSubTab = "ranking";
+  villainGameSelectedMember = null;
+
+  updateReportModeSwitcherUI(mode);
+  renderCurrentData();
+  returnToReportHome();
+
+  const modeNames = {
+    chemistry: "모드 1 • 단톡방 전체 케미 분석",
+    romance: "모드 2 • 썸·연인 1:1 애정도 정밀 진단",
+    villain: "모드 3 • 조별과제 빌런·무임승차 탐지"
+  };
+  showToast(`${modeNames[mode] || "선택한 모드"} 리포트로 즉시 전환되었습니다`, "fa-wand-magic-sparkles");
+}
+
+function updateReportModeSwitcherUI(activeMode) {
+  const modes = [
+    { key: "chemistry", activeClass: "bg-[#f5b73d] text-[#030708] shadow-sm font-extrabold", inactiveClass: "text-[#848c96] hover:text-[#f6f8fa] font-bold" },
+    { key: "romance", activeClass: "bg-[#ec4899] text-white shadow-sm font-extrabold", inactiveClass: "text-[#848c96] hover:text-[#f6f8fa] font-bold" },
+    { key: "villain", activeClass: "bg-[#10b981] text-[#030708] shadow-sm font-extrabold", inactiveClass: "text-[#848c96] hover:text-[#f6f8fa] font-bold" }
+  ];
+  modes.forEach(({ key, activeClass, inactiveClass }) => {
+    const btn = document.getElementById(`reportModeBtn_${key}`);
+    if (!btn) return;
+    btn.className = `px-2.5 py-1 rounded-full text-[11px] transition flex items-center gap-1 ${key === activeMode ? activeClass : inactiveClass}`;
+  });
 }
 
 function handleHeaderHomeClick() {
@@ -797,8 +1117,8 @@ function selectPreAnalysisMode(mode) {
 
   const modeMeta = {
     chemistry: {
-      cite: "선택된 모드: 🔥 단톡방 전체 케미",
-      heroLine1: `우리 단톡방, <span class="bg-gradient-to-r from-[#fde68a] via-[#f5b73d] to-[#f59e0b] bg-clip-text text-transparent">누가 제일 잘 통할까?</span>`,
+      cite: "선택된 모드: 🔥 단톡방 전체 케미 (다른 모드는 새 파일 열기에서 다시 분석)",
+      heroLine1: `<span class="inline-block whitespace-nowrap">우리 단톡방, <span class="bg-gradient-to-r from-[#fde68a] via-[#f5b73d] to-[#f59e0b] bg-clip-text text-transparent">누가 제일 잘 통할까?</span></span>`,
       heroLine2: "카톡으로 보는 찐친 궁합 & 16종 캐릭터",
       heroDesc: `원하는 <strong class="text-[#f4f4f6] font-bold">분석 모드</strong>를 고르고 <strong class="text-[#f5b73d] font-bold">카톡 대화 파일(.txt)</strong>만 올리면 3초 만에 결과가 나옵니다.`,
       badgeHtml: `<i class="fa-solid fa-fire text-[11px]"></i><span>STEP 2 • 단톡방 전체 케미 모드로 분석 시작</span>`,
@@ -810,8 +1130,8 @@ function selectPreAnalysisMode(mode) {
       accentColor: "#f5b73d"
     },
     romance: {
-      cite: "선택된 모드: 💕 썸·연인 1:1 애정도",
-      heroLine1: `우리 둘 사이, <span class="bg-gradient-to-r from-pink-300 via-rose-400 to-amber-300 bg-clip-text text-transparent">누가 더 좋아할까?</span>`,
+      cite: "선택된 모드: 💕 썸·연인 1:1 애정도 (다른 모드는 새 파일 열기에서 다시 분석)",
+      heroLine1: `<span class="inline-block whitespace-nowrap">우리 둘 사이, <span class="bg-gradient-to-r from-pink-300 via-rose-400 to-amber-300 bg-clip-text text-transparent">누가 더 좋아할까?</span></span>`,
       heroLine2: "카톡으로 보는 1:1 호감도 & 숨겨진 속마음",
       heroDesc: `원하는 <strong class="text-[#f4f4f6] font-bold">분석 모드</strong>를 고르고 <strong class="text-pink-400 font-bold">카톡 대화 파일(.txt)</strong>만 올리면 3초 만에 결과가 나옵니다.`,
       badgeHtml: `<i class="fa-solid fa-heart text-[11px]"></i><span>STEP 2 • 썸·연인 1:1 애정도 모드로 분석 시작</span>`,
@@ -823,8 +1143,8 @@ function selectPreAnalysisMode(mode) {
       accentColor: "#f472b6"
     },
     villain: {
-      cite: "선택된 모드: 🚨 조별과제 빌런 탐지",
-      heroLine1: `우리 조 단톡방, <span class="bg-gradient-to-r from-emerald-300 via-teal-400 to-rose-400 bg-clip-text text-transparent">누가 무임승차 빌런일까?</span>`,
+      cite: "선택된 모드: 🚨 조별과제 빌런 탐지 (다른 모드는 새 파일 열기에서 다시 분석)",
+      heroLine1: `<span class="inline-block whitespace-nowrap">우리 조 단톡방, <span class="bg-gradient-to-r from-emerald-300 via-teal-400 to-rose-400 bg-clip-text text-transparent">누가 무임승차 빌런일까?</span></span>`,
       heroLine2: "카톡으로 보는 과제 기여도 시상식 & 빌런 참교육",
       heroDesc: `원하는 <strong class="text-[#f4f4f6] font-bold">분석 모드</strong>를 고르고 <strong class="text-emerald-400 font-bold">카톡 대화 파일(.txt)</strong>만 올리면 3초 만에 결과가 나옵니다.`,
       badgeHtml: `<i class="fa-solid fa-radar text-[11px]"></i><span>STEP 2 • 조별과제 빌런 탐지 모드로 분석 시작</span>`,
@@ -908,6 +1228,18 @@ function setRomanceSubTab(tab) {
   renderModeDedicatedDashboard();
 }
 
+// 썸·연인 모드 탭 3: 차마 못 물어본 질문 6선 말풍선 선택 상태 및 토글(ON/OFF) 핸들러
+let selectedUnspokenQuestionIdx = 0;
+function selectUnspokenQuestion(idx) {
+  const parsed = Number(idx);
+  if (isNaN(parsed) || parsed < 0 || selectedUnspokenQuestionIdx === parsed) {
+    selectedUnspokenQuestionIdx = -1; // 같은 말풍선을 다시 누르면 끄기(OFF)
+  } else {
+    selectedUnspokenQuestionIdx = parsed; // 새 말풍선을 누르면 켜기(ON)
+  }
+  renderModeDedicatedDashboard();
+}
+
 // 조별과제 빌런 모드 서브 탭 전환 핸들러
 function setVillainSubTab(tab) {
   currentVillainSubTab = tab;
@@ -920,7 +1252,20 @@ function setVillainRankSort(sortType) {
   renderModeDedicatedDashboard();
 }
 
-// [핵심] 선택된 모드에 따라 리포트 전체 골격을 100% 독립 전환하고 다른 모드 이동을 잠그는 엔진
+// 조별과제 빌런 표현 수위(매운맛/순한맛) 토글 핸들러
+function setVillainSpiceMode(isMild) {
+  isVillainMildMode = Boolean(isMild);
+  renderModeDedicatedDashboard();
+  showToast(
+    isVillainMildMode
+      ? "🌱 순한맛(평화 모드)으로 전환되었습니다 • 단톡방 공유용 순화 표현이 적용됩니다"
+      : "🌶️ 매운맛(팩폭 모드)으로 전환되었습니다 • 직설적인 팩트 폭격 표현이 적용됩니다",
+    isVillainMildMode ? "fa-seedling" : "fa-pepper-hot",
+    isVillainMildMode ? "#10b981" : "#f43f5e"
+  );
+}
+
+// [핵심] 선택된 모드 전용으로 리포트를 렌더링 (다른 분석 모드로 보려면 새 파일 열기로 다시 분석)
 function renderModeDedicatedDashboard() {
   const container = document.getElementById("modeDedicatedViewContainer");
   if (!container || !currentData) return;
@@ -929,9 +1274,9 @@ function renderModeDedicatedDashboard() {
     currentData.academicMetrics = window.KAKAO_PARSER.computeAcademicMetrics(currentData);
   }
 
-  // 한 번 분석된 파일은 처음에 선택한 모드 고정 (모드 간 이동 차단)
-  const activeMode = currentData.lockedAnalysisMode || selectedAnalysisMode;
+  const activeMode = currentData.lockedAnalysisMode || currentData.lockedMode || selectedAnalysisMode;
   selectedAnalysisMode = activeMode;
+  updateReportModeSwitcherUI(activeMode);
 
   const lineupSection = document.getElementById("overviewMemberLineupSection");
   const deepDiveSection = document.getElementById("deepDiveWrapper");
@@ -941,11 +1286,12 @@ function renderModeDedicatedDashboard() {
   const btnSharePhotocard = document.getElementById("btnSharePhotocard");
   const lockedBanner = document.getElementById("lockedReportModeBanner");
 
+  if (btnSharePhotocard) btnSharePhotocard.classList.remove("hidden");
+
   if (activeMode === "romance") {
     if (lineupSection) lineupSection.classList.add("hidden");
     if (deepDiveSection) deepDiveSection.classList.add("hidden");
     if (myProfileBanner) myProfileBanner.classList.add("hidden");
-    if (btnSharePhotocard) btnSharePhotocard.classList.add("hidden");
     if (headerIconBox) {
       headerIconBox.className = "w-8 h-8 rounded-xl bg-pink-500/15 border border-pink-400/35 flex items-center justify-center text-sm text-pink-300 group-hover:bg-pink-400 group-hover:text-[#060608] transition-all";
       headerIconBox.innerHTML = `<i class="fa-solid fa-heart-pulse"></i>`;
@@ -956,16 +1302,12 @@ function renderModeDedicatedDashboard() {
       `;
     }
     if (lockedBanner) {
+      lockedBanner.className = "px-4 py-2 rounded-full text-xs font-bold flex flex-wrap items-center gap-2 bg-pink-500/15 text-pink-300 border border-pink-400/40";
       lockedBanner.innerHTML = `
-        <div class="flex items-center gap-2 text-xs font-bold">
-          <span class="px-3 py-1 rounded-full bg-pink-400 text-[#060608] font-black flex items-center gap-1.5">
-            <i class="fa-solid fa-lock text-[10px]"></i> 💕 1:1 썸·연인 애정도 분석 모드 고정됨
-          </span>
-          <span class="text-[#8e929f] hidden md:inline">한 파일당 선택한 하나의 모드로만 분석됩니다.</span>
-        </div>
-        <button onclick="showLandingView()" class="px-3 py-1 rounded-full text-xs font-bold bg-white/[0.06] hover:bg-white/[0.12] text-[#f4f4f6] border border-white/[0.1] transition-all cursor-pointer flex items-center gap-1.5">
-          <i class="fa-solid fa-rotate-left text-[10px] text-pink-300"></i> 다른 모드로 새 파일 열기
-        </button>
+        <span class="px-2.5 py-0.5 rounded-full bg-pink-400 text-[#060608] font-black flex items-center gap-1">
+          <i class="fa-solid fa-heart text-[10px]"></i> 💕 1:1 썸·연인 애정도 분석
+        </span>
+        <span class="text-[#a8b0c2] text-[11px] hidden sm:inline">다른 분석 모드로 보려면 우측 상단 [새 파일 열기 / 모드 변경]에서 다시 분석해 주세요</span>
       `;
     }
     renderRomanceModeUI(container);
@@ -973,7 +1315,6 @@ function renderModeDedicatedDashboard() {
     if (lineupSection) lineupSection.classList.add("hidden");
     if (deepDiveSection) deepDiveSection.classList.add("hidden");
     if (myProfileBanner) myProfileBanner.classList.add("hidden");
-    if (btnSharePhotocard) btnSharePhotocard.classList.add("hidden");
     if (headerIconBox) {
       headerIconBox.className = "w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-400/35 flex items-center justify-center text-sm text-emerald-300 group-hover:bg-emerald-400 group-hover:text-[#060608] transition-all";
       headerIconBox.innerHTML = `<i class="fa-solid fa-user-secret"></i>`;
@@ -984,16 +1325,12 @@ function renderModeDedicatedDashboard() {
       `;
     }
     if (lockedBanner) {
+      lockedBanner.className = "px-4 py-2 rounded-full text-xs font-bold flex flex-wrap items-center gap-2 bg-emerald-500/15 text-emerald-300 border border-emerald-400/40";
       lockedBanner.innerHTML = `
-        <div class="flex items-center gap-2 text-xs font-bold">
-          <span class="px-3 py-1 rounded-full bg-emerald-400 text-[#060608] font-black flex items-center gap-1.5">
-            <i class="fa-solid fa-lock text-[10px]"></i> 🚨 조별과제 빌런 탐지 모드 고정됨
-          </span>
-          <span class="text-[#8e929f] hidden md:inline">한 파일당 선택한 하나의 모드로만 분석됩니다.</span>
-        </div>
-        <button onclick="showLandingView()" class="px-3 py-1 rounded-full text-xs font-bold bg-white/[0.06] hover:bg-white/[0.12] text-[#f4f4f6] border border-white/[0.1] transition-all cursor-pointer flex items-center gap-1.5">
-          <i class="fa-solid fa-rotate-left text-[10px] text-emerald-300"></i> 다른 모드로 새 파일 열기
-        </button>
+        <span class="px-2.5 py-0.5 rounded-full bg-emerald-400 text-[#060608] font-black flex items-center gap-1">
+          <i class="fa-solid fa-user-secret text-[10px]"></i> 🚨 조별과제 빌런 탐지 분석
+        </span>
+        <span class="text-[#a8b0c2] text-[11px] hidden sm:inline">다른 분석 모드로 보려면 우측 상단 [새 파일 열기 / 모드 변경]에서 다시 분석해 주세요</span>
       `;
     }
     renderVillainModeUI(container);
@@ -1001,7 +1338,6 @@ function renderModeDedicatedDashboard() {
     if (lineupSection) lineupSection.classList.remove("hidden");
     if (deepDiveSection) deepDiveSection.classList.remove("hidden");
     if (myProfileBanner) myProfileBanner.classList.remove("hidden");
-    if (btnSharePhotocard) btnSharePhotocard.classList.remove("hidden");
     if (headerIconBox) {
       headerIconBox.className = "w-8 h-8 rounded-xl bg-[#f5b73d]/15 border border-[#f5b73d]/30 flex items-center justify-center text-sm text-[#f5b73d] group-hover:bg-[#f5b73d] group-hover:text-[#060608] transition-all";
       headerIconBox.innerHTML = `<i class="fa-solid fa-comment-dots"></i>`;
@@ -1012,16 +1348,12 @@ function renderModeDedicatedDashboard() {
       `;
     }
     if (lockedBanner) {
+      lockedBanner.className = "px-4 py-2 rounded-full text-xs font-bold flex flex-wrap items-center gap-2 bg-[#f5b73d]/15 text-[#f5b73d] border border-[#f5b73d]/40";
       lockedBanner.innerHTML = `
-        <div class="flex items-center gap-2 text-xs font-bold">
-          <span class="px-3 py-1 rounded-full bg-[#f5b73d] text-[#060608] font-black flex items-center gap-1.5">
-            <i class="fa-solid fa-lock text-[10px]"></i> 🔥 단톡방 전체 케미 분석 모드 고정됨
-          </span>
-          <span class="text-[#8e929f] hidden md:inline">한 파일당 선택한 하나의 모드로만 분석됩니다.</span>
-        </div>
-        <button onclick="showLandingView()" class="px-3 py-1 rounded-full text-xs font-bold bg-white/[0.06] hover:bg-white/[0.12] text-[#f4f4f6] border border-white/[0.1] transition-all cursor-pointer flex items-center gap-1.5">
-          <i class="fa-solid fa-rotate-left text-[10px] text-[#f5b73d]"></i> 다른 모드로 새 파일 열기
-        </button>
+        <span class="px-2.5 py-0.5 rounded-full bg-[#f5b73d] text-[#060608] font-black flex items-center gap-1">
+          <i class="fa-solid fa-fire text-[10px]"></i> 🔥 단톡방 전체 케미 분석
+        </span>
+        <span class="text-[#a8b0c2] text-[11px] hidden sm:inline">다른 분석 모드로 보려면 우측 상단 [새 파일 열기 / 모드 변경]에서 다시 분석해 주세요</span>
       `;
     }
     renderChemistryModeUI(container);
@@ -1195,9 +1527,29 @@ function renderRomanceModeUI(container) {
   const lsmQ = 1 - Math.abs(((mA.questions || 1) / (mA.totalMsgs || 1)) - ((mB.questions || 1) / (mB.totalMsgs || 1))) / (((mA.questions || 1) / (mA.totalMsgs || 1)) + ((mB.questions || 1) / (mB.totalMsgs || 1)) + 0.01);
   const dyadicLsm = Math.min(99, Math.max(55, Math.round((lsmLen * 0.4 + lsmLaugh * 0.35 + lsmQ * 0.25) * 100)));
 
-  // 2. 답장 속도 비교 (빠를수록 적극성 높음)
-  const speedA = Math.max(1, mA.replySpeed || 4);
-  const speedB = Math.max(1, mB.replySpeed || 5);
+  const pairData = (currentData.pairRankings || []).find(p => p.pair.includes(mA.name) && p.pair.includes(mB.name));
+
+  // 2. 답장 속도 비교 (1:1 페어 전용 답장 속도가 있으면 우선 반영 + 단톡방 평균 대비 '선택적 칼답' 편애 지수 감지)
+  let speedA = Math.max(1, mA.replySpeed || 4);
+  let speedB = Math.max(1, mB.replySpeed || 5);
+  let fastRepliesA = 0;
+  let fastRepliesB = 0;
+  if (pairData && Array.isArray(pairData.pair)) {
+    if (pairData.pair[0] === mA.name) {
+      if (pairData.avgReply1to2) speedA = Math.max(1, pairData.avgReply1to2);
+      if (pairData.avgReply2to1) speedB = Math.max(1, pairData.avgReply2to1);
+      fastRepliesA = pairData.fastReplies1to2 || 0;
+      fastRepliesB = pairData.fastReplies2to1 || 0;
+    } else {
+      if (pairData.avgReply2to1) speedA = Math.max(1, pairData.avgReply2to1);
+      if (pairData.avgReply1to2) speedB = Math.max(1, pairData.avgReply1to2);
+      fastRepliesA = pairData.fastReplies2to1 || 0;
+      fastRepliesB = pairData.fastReplies1to2 || 0;
+    }
+  }
+  const selectiveBoostA = (mA.replySpeed && mA.replySpeed > speedA) ? Math.round(((mA.replySpeed - speedA) / mA.replySpeed) * 100) : 0;
+  const selectiveBoostB = (mB.replySpeed && mB.replySpeed > speedB) ? Math.round(((mB.replySpeed - speedB) / mB.replySpeed) * 100) : 0;
+
   const invSpeedA = 1 / speedA;
   const invSpeedB = 1 / speedB;
   const speedShareA = Math.round((invSpeedA / (invSpeedA + invSpeedB)) * 100);
@@ -1226,7 +1578,6 @@ function renderRomanceModeUI(container) {
   const lessInLove = totalInvestA >= totalInvestB ? mB : mA;
   const investDiff = Math.abs(totalInvestA - totalInvestB);
 
-  const pairData = (currentData.pairRankings || []).find(p => p.pair.includes(mA.name) && p.pair.includes(mB.name));
   const romanceScore = Math.min(99, Math.max(68, Math.round(dyadicLsm * 0.5 + (pairData ? pairData.score : 92) * 0.5)));
 
   // 한눈에 들어오는 관계 결론 타이틀 & 설명
@@ -1362,7 +1713,8 @@ function renderRomanceModeUI(container) {
                 <h4 class="text-2xl sm:text-3xl font-black text-[#f4f4f6]">${mA.name}</h4>
                 <div class="text-xl sm:text-2xl font-black text-pink-300">애정 표현 ${totalInvestA}%</div>
                 <p class="text-xs text-[#d4d7e0] font-semibold">${mA.roleDesc || mA.title}</p>
-                <p class="text-xs text-[#8e929f] pt-1">먼저 말 걸기 ${mA.starters}회 • 답장 ${speedA}분</p>
+                <p class="text-xs text-[#8e929f] pt-1">먼저 말 걸기 ${mA.starters}회 • 1:1 답장 ${speedA}분</p>
+                ${selectiveBoostA >= 15 ? `<span class="inline-block mt-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-pink-400 text-[#060608]">⚡ ${mB.name}님에게 ${selectiveBoostA}% 더 칼답!</span>` : ""}
               </div>
             </div>
 
@@ -1374,7 +1726,7 @@ function renderRomanceModeUI(container) {
                 <span class="text-xs font-bold text-emerald-300">말투 닮은 정도 ${dyadicLsm}%</span>
               </div>
               <span class="text-xs sm:text-sm font-bold text-pink-200">
-                주고받은 대화 총 ${(currentData.totalMessages || 0).toLocaleString()}건
+                ${pairData && pairData.exchanges ? `두 사람 직접 티키타카 ${pairData.exchanges}회 · 최대 ${pairData.maxStreak || 12}연속 대화` : `주고받은 대화 총 ${(currentData.totalMessages || 0).toLocaleString()}건`}
               </span>
             </div>
 
@@ -1389,7 +1741,8 @@ function renderRomanceModeUI(container) {
                 <h4 class="text-2xl sm:text-3xl font-black text-[#f4f4f6]">${mB.name}</h4>
                 <div class="text-xl sm:text-2xl font-black text-sky-300">애정 표현 ${totalInvestB}%</div>
                 <p class="text-xs text-[#d4d7e0] font-semibold">${mB.roleDesc || mB.title}</p>
-                <p class="text-xs text-[#8e929f] pt-1">먼저 말 걸기 ${mB.starters}회 • 답장 ${speedB}분</p>
+                <p class="text-xs text-[#8e929f] pt-1">먼저 말 걸기 ${mB.starters}회 • 1:1 답장 ${speedB}분</p>
+                ${selectiveBoostB >= 15 ? `<span class="inline-block mt-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-sky-400 text-[#060608]">⚡ ${mA.name}님에게 ${selectiveBoostB}% 더 칼답!</span>` : ""}
               </div>
             </div>
           </div>
@@ -1419,7 +1772,7 @@ function renderRomanceModeUI(container) {
               <h4 class="text-xl sm:text-2xl font-black text-[#f4f4f6] flex items-center gap-2">
                 <i class="fa-solid fa-scale-unbalanced-flip text-pink-400"></i> 누가 더 적극적으로 다가갔을까?
               </h4>
-              <p class="text-xs sm:text-sm text-[#8e929f] mt-1">선톡 횟수, 답장 속도, 메시지 길이, 다정한 표현 횟수를 나란히 비교했습니다.</p>
+              <p class="text-xs sm:text-sm text-[#8e929f] mt-1">선톡 횟수, 1:1 전용 답장 속도, 메시지 길이, 다정한 표현 횟수를 나란히 비교했습니다.</p>
             </div>
             <div class="flex items-center gap-4 text-sm font-black">
               <span class="flex items-center gap-1.5 text-pink-300"><span class="w-3 h-3 rounded-full bg-pink-400"></span>${mA.name} ${totalInvestA}%</span>
@@ -1444,14 +1797,20 @@ function renderRomanceModeUI(container) {
             <!-- 바 2: 누가 더 빨리 답장할까 -->
             <div class="space-y-2">
               <div class="flex justify-between items-baseline text-xs sm:text-sm font-bold">
-                <span class="text-pink-300 text-sm sm:text-base font-black">${mA.name} 평균 ${speedA}분</span>
+                <span class="text-pink-300 text-sm sm:text-base font-black">${mA.name} 1:1 평균 ${speedA}분${fastRepliesA > 0 ? ` (칼답 ${fastRepliesA}회)` : ""}</span>
                 <span class="text-[#f4f4f6] text-sm sm:text-base font-black">② 누가 더 빨리 답장할까?</span>
-                <span class="text-sky-300 text-sm sm:text-base font-black">평균 ${speedB}분 ${mB.name}</span>
+                <span class="text-sky-300 text-sm sm:text-base font-black">${fastRepliesB > 0 ? `(칼답 ${fastRepliesB}회) ` : ""}1:1 평균 ${speedB}분 ${mB.name}</span>
               </div>
               <div class="w-full h-4 rounded-full bg-[#161924] overflow-hidden flex p-0.5 gap-1">
                 <div class="h-full rounded-l-full bg-gradient-to-r from-pink-500 to-rose-400" style="width: ${speedShareA}%"></div>
                 <div class="h-full rounded-r-full bg-gradient-to-l from-sky-500 to-cyan-400" style="width: ${speedShareB}%"></div>
               </div>
+              ${(selectiveBoostA >= 15 || selectiveBoostB >= 15) ? `
+                <div class="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs">
+                  ${selectiveBoostA >= 15 ? `<span class="text-pink-300 font-bold">💘 ${mA.name}님은 평소 평균(${mA.replySpeed}분)보다 ${mB.name}님에게 <strong>${speedA}분</strong>으로 ${selectiveBoostA}% 더 빨리 칼답합니다!</span>` : `<span></span>`}
+                  ${selectiveBoostB >= 15 ? `<span class="text-sky-300 font-bold">💘 ${mB.name}님은 평소 평균(${mB.replySpeed}분)보다 ${mA.name}님에게 <strong>${speedB}분</strong>으로 ${selectiveBoostB}% 더 빨리 칼답합니다!</span>` : `<span></span>`}
+                </div>
+              ` : ""}
             </div>
 
             <!-- 바 3: 누가 더 길고 정성스럽게 보낼까 -->
@@ -1571,9 +1930,15 @@ function renderRomanceModeUI(container) {
       </div>
     `;
   } else if (currentRomanceSubTab === "mind") {
-    // 탭 3: 숨겨진 속마음 & 차마 못 물어본 질문 6선
+    // 탭 3: 숨겨진 속마음 & 차마 못 물어본 질문 6선 (페어 변경 시 해당 페어 맞춤형 동적 생성!)
     const acadRomance = (currentData.academicMetrics && currentData.academicMetrics.romance) || {};
-    const secretMind = acadRomance.secretMind || null;
+    const staticSecretMind = acadRomance.secretMind || null;
+    const isDefaultPair = idxA === 0 && (idxB === 1 || members.length === 1);
+    const dynamicSecretMind = (window.KAKAO_PARSER && typeof window.KAKAO_PARSER.buildDynamicSecretMind === "function")
+      ? window.KAKAO_PARSER.buildDynamicSecretMind(mA, mB, pairData, currentData)
+      : null;
+    const secretMind = (isDefaultPair && staticSecretMind) ? staticSecretMind : (dynamicSecretMind || staticSecretMind);
+
     const hiddenHearts = (secretMind && secretMind.hiddenHearts) || [
       {
         name: mA.name,
@@ -1594,8 +1959,8 @@ function renderRomanceModeUI(container) {
       ? secretMind.unspokenQuestions
       : [
           {
-            icon: "fa-Scale-balanced",
-            factBadge: `호감 비중 ${ratioA}% : ${ratioB}%`,
+            icon: "fa-scale-balanced",
+            factBadge: `호감 비중 ${totalInvestA}% : ${totalInvestB}%`,
             q: `솔직히 우리 둘 중에 누가 더 좋아하는 거야?`,
             verdict: totalInvestA >= totalInvestB
               ? `${mA.name}님이 먼저 다가가는 에너지가 조금 더 크지만, ${mB.name}님의 답장 성의도 못지않은 쌍방 호감입니다!`
@@ -1611,9 +1976,9 @@ function renderRomanceModeUI(container) {
           },
           {
             icon: "fa-moon",
-            factBadge: `심야 대화 ${nightSync}% 일치`,
+            factBadge: `심야 대화 ${lateNightRatio}% 일치`,
             q: `밤늦게 카톡할 때 상대방도 내 생각하면서 설레고 있을까?`,
-            verdict: `밤 11시 이후 감성 대화 호흡이 ${nightSync}% 일치합니다. 밤마다 서로에게 집중하고 있습니다!`,
+            verdict: `밤 10시 이후 감성 대화 호흡이 ${lateNightRatio}%에 달합니다. 밤마다 서로에게 집중하고 있습니다!`,
             detail: `피곤한 밤 시간대에도 대화가 끊기지 않고 웃음(ㅋㅋ/ㅎㅎ)과 다정한 표현이 오가는 것은 이성적 호감이 높을 때 나타나는 대표적인 시그널입니다.`
           },
           {
@@ -1631,8 +1996,8 @@ function renderRomanceModeUI(container) {
             detail: `선톡 직후 상대방의 웃음 반응(${mA.laughs + mB.laughs}회)과 질문 빈도를 보면 연락을 기다리고 있었다는 신호가 뚜렷합니다.`
           },
           {
-            icon: "fa-calendar-heart",
-            factBadge: `호감 확신도 ${mutualScore}점`,
+            icon: "fa-heart",
+            factBadge: `호감 확신도 ${romanceScore}점`,
             q: `지금 바로 주말에 따로 만나자고 데이트 신청해도 될까?`,
             verdict: `성공 확률 매우 높음! 막연한 약속 대신 날짜와 메뉴를 콕 집어서 제안해 보세요.`,
             detail: `"언제 밥 한번 먹자"보다는 "이번 주 토요일에 맛있는 거 먹으러 갈래?"처럼 구체적으로 물어볼 때 호감도가 급상승합니다.`
@@ -1701,72 +2066,222 @@ function renderRomanceModeUI(container) {
           </div>
         </div>
 
-        <!-- 2. 연인·썸 사이 차마 물어보지 못했던 질문 6선 데이터 판독 -->
+        <!-- 2. 연인·썸 사이 차마 물어보지 못했던 질문 6선 (좌측 작은 말풍선 6개 모음 + 우측 대형 답변 스테이지 토글) -->
         <div class="rounded-[32px] p-6 sm:p-8 bg-[#0d0f16]/90 border border-white/[0.07] space-y-6">
-          <div>
-            <span class="px-3 py-1 rounded-full text-xs font-black bg-purple-400 text-[#060608]">차마 못 물어본 질문 6선</span>
-            <h4 class="text-xl sm:text-2xl font-black text-[#f4f4f6] mt-2">
-              물어보고 싶었지만 자존심 때문에 못 물어봤던 질문들
-            </h4>
-            <p class="text-xs sm:text-sm text-[#8e929f] mt-1">실제 대화 기록을 근거로 가장 궁금했던 6가지 질문에 솔직한 답을 드립니다.</p>
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <span class="px-3 py-1 rounded-full text-xs font-black bg-purple-400 text-[#060608]">💬 차마 못 물어본 질문 6선</span>
+              <h4 class="text-xl sm:text-2xl font-black text-[#f4f4f6] mt-2">
+                궁금한 질문 말풍선을 눌러보세요!
+              </h4>
+              <p class="text-xs sm:text-sm text-[#8e929f] mt-1">왼쪽의 작은 질문 말풍선을 누르면 오른쪽 큰 공간에 답변이 열리고, 다시 누르면 닫힙니다.</p>
+            </div>
+            <span class="px-3 py-1.5 rounded-full text-xs font-extrabold bg-pink-500/15 text-pink-300 border border-pink-400/30">
+              👆 말풍선 클릭 시 켜기 / 다시 클릭 시 끄기
+            </span>
           </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            ${unspokenQuestions.map((uq) => `
-              <div class="p-5 rounded-3xl bg-[#12141f] border border-white/[0.08] flex flex-col justify-between space-y-3">
-                <div class="space-y-2">
-                  <div class="flex items-center justify-between gap-2">
-                    <span class="text-xs font-black text-pink-300 flex items-center gap-1.5">
-                      <i class="fa-solid ${uq.icon || "fa-circle-question"}"></i> 속마음 Q&amp;A
+          <!-- 좌측 작은 말풍선 6개 모음 (5열) + 우측 대형 답변 스테이지 (7열) -->
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch pt-1">
+            <!-- 왼쪽: 꼬리 달린 작은 말풍선 6개 -->
+            <div class="lg:col-span-5 flex flex-col justify-between gap-2.5">
+              ${unspokenQuestions.map((uq, idx) => {
+                const isSelected = selectedUnspokenQuestionIdx === idx;
+                return `
+                  <button type="button" onclick="selectUnspokenQuestion(${idx})" class="group relative text-left pl-4 pr-3.5 py-3 rounded-2xl rounded-bl-none transition-all duration-200 cursor-pointer flex items-center justify-between gap-3 ${
+                    isSelected
+                      ? "bg-gradient-to-r from-pink-500/30 via-purple-500/20 to-[#191528] border-2 border-pink-400 shadow-[0_6px_20px_rgba(244,114,182,0.25)] translate-x-1"
+                      : "bg-[#131622]/95 hover:bg-[#191d2d] border border-white/[0.09] hover:border-pink-400/40"
+                  }">
+                    <!-- 말풍선 좌하단 꼬리 장식 -->
+                    <span class="absolute -bottom-[7px] left-3 w-3 h-3 rotate-45 ${
+                      isSelected
+                        ? "bg-[#26172c] border-b-2 border-r-2 border-pink-400"
+                        : "bg-[#131622] border-b border-r border-white/[0.09] group-hover:border-pink-400/40"
+                    }"></span>
+
+                    <div class="flex items-center gap-2.5 min-w-0">
+                      <span class="shrink-0 px-2 py-0.5 rounded-full text-[11px] font-black ${
+                        isSelected ? "bg-pink-400 text-[#060608]" : "bg-white/[0.08] text-pink-300"
+                      }">
+                        Q${idx + 1}
+                      </span>
+                      <p class="text-xs sm:text-sm font-extrabold leading-snug break-keep truncate ${
+                        isSelected ? "text-[#f4f4f6]" : "text-[#d4d7e0] group-hover:text-white"
+                      }">
+                        ${uq.q}
+                      </p>
+                    </div>
+
+                    <span class="shrink-0 text-[10px] font-black px-2 py-0.5 rounded-full ${
+                      isSelected
+                        ? "bg-pink-400/20 text-amber-300 border border-pink-400/40"
+                        : "bg-white/[0.04] text-[#8e929f] group-hover:text-pink-300"
+                    }">
+                      ${isSelected ? "닫기 ✕" : "열기 ▶"}
                     </span>
-                    <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-pink-500/15 text-pink-200 border border-pink-400/30">${uq.factBadge || "데이터 판독"}</span>
+                  </button>
+                `;
+              }).join("")}
+            </div>
+
+            <!-- 오른쪽: 선택한 말풍선이 좌상단에 작게 자리잡고 아래에 답변이 크게 나오는 스테이지 -->
+            <div class="lg:col-span-7 flex flex-col">
+              ${(() => {
+                const isOpen = selectedUnspokenQuestionIdx >= 0 && selectedUnspokenQuestionIdx < unspokenQuestions.length;
+                if (!isOpen) {
+                  return `
+                    <div class="h-full min-h-[280px] rounded-3xl p-8 bg-[#090a10]/80 border-2 border-dashed border-white/[0.1] flex flex-col items-center justify-center text-center space-y-3">
+                      <div class="w-14 h-14 rounded-2xl bg-pink-500/15 border border-pink-400/30 flex items-center justify-center text-2xl text-pink-300">
+                        💬
+                      </div>
+                      <h5 class="text-base sm:text-lg font-black text-[#f4f4f6]">질문 말풍선이 닫혀 있습니다</h5>
+                      <p class="text-xs sm:text-sm text-[#8e929f] max-w-md break-keep">
+                        왼쪽에 모여 있는 6개의 작은 말풍선 중 궁금한 질문을 클릭하면, 이곳에 상세 데이터 판독 답변이 크게 펼쳐집니다.
+                      </p>
+                    </div>
+                  `;
+                }
+                const activeIdx = selectedUnspokenQuestionIdx;
+                const activeQ = unspokenQuestions[activeIdx];
+                return `
+                  <div class="h-full relative rounded-3xl p-6 sm:p-7 bg-gradient-to-br from-[#1b1426] via-[#121420] to-[#0b0d14] border-2 border-pink-400/45 shadow-[0_18px_45px_rgba(0,0,0,0.55)] flex flex-col justify-between space-y-5">
+                    <!-- 좌상단에 작게 자리잡은 선택된 질문 말풍선 + 우상단 데이터 뱃지/끄기 버튼 -->
+                    <div class="flex flex-wrap items-start justify-between gap-3 border-b border-white/[0.08] pb-4">
+                      <div class="relative inline-flex items-center gap-2 px-4 py-2 rounded-2xl rounded-tl-none bg-pink-500/25 border border-pink-400/60 shadow-sm max-w-full">
+                        <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-pink-400 text-[#060608] shrink-0">
+                          💬 Q${activeIdx + 1}
+                        </span>
+                        <span class="text-xs sm:text-sm font-black text-pink-100 break-keep">
+                          "${activeQ.q}"
+                        </span>
+                      </div>
+                      <div class="flex items-center gap-2 shrink-0">
+                        <span class="px-3 py-1 rounded-full text-xs font-black bg-pink-500/20 text-pink-200 border border-pink-400/35">
+                          📊 ${activeQ.factBadge || "실제 대화 기반"}
+                        </span>
+                        <button type="button" onclick="selectUnspokenQuestion(${activeIdx})" class="px-2.5 py-1 rounded-full text-xs font-black bg-white/[0.07] hover:bg-rose-500/30 text-[#d4d7e0] hover:text-rose-200 border border-white/[0.1] cursor-pointer transition">
+                          닫기 ✕
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- 큰 공간에 표시되는 한 줄 결론 & 상세 데이터 판독 -->
+                    <div class="space-y-4 my-auto">
+                      <div class="p-5 sm:p-6 rounded-2xl bg-[#090a10]/95 border border-amber-300/35 space-y-2.5">
+                        <div class="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                          <i class="fa-solid fa-wand-magic-sparkles"></i> 실제 카톡 데이터 한 줄 결론
+                        </div>
+                        <p class="text-lg sm:text-2xl font-black text-[#f4f4f6] leading-snug break-keep">
+                          👉 ${activeQ.verdict}
+                        </p>
+                      </div>
+
+                      <div class="p-4 sm:p-5 rounded-2xl bg-white/[0.03] border border-white/[0.07] space-y-2">
+                        <span class="text-xs font-bold text-pink-300 flex items-center gap-1.5">
+                          <i class="fa-solid fa-magnifying-glass-chart"></i> 카톡 기록 기반 상세 해설
+                        </span>
+                        <p class="text-sm sm:text-base text-[#d4d7e0] font-medium leading-relaxed break-keep">
+                          ${activeQ.detail}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <h5 class="text-base sm:text-lg font-black text-[#f4f4f6] leading-snug break-keep">${uq.q}</h5>
-                  <p class="text-sm sm:text-base font-extrabold text-amber-300 leading-snug break-keep">👉 ${uq.verdict}</p>
-                </div>
-                <p class="text-xs sm:text-sm text-[#d4d7e0] leading-relaxed pt-2 border-t border-white/[0.06] break-keep">
-                  ${uq.detail}
-                </p>
-              </div>
-            `).join("")}
+                `;
+              })()}
+            </div>
           </div>
         </div>
 
-        <!-- 3. 오늘 밤 바로 써먹는 카톡 치트키 -->
-        ${loveCheatKeys.length > 0 ? `
-          <div class="rounded-[32px] p-6 sm:p-8 bg-gradient-to-r from-pink-500/12 via-[#12131d] to-sky-500/12 border border-pink-400/25 space-y-4">
-            <h4 class="text-lg sm:text-xl font-black text-[#f4f4f6] flex items-center gap-2">
-              <i class="fa-solid fa-key text-amber-300"></i> 상대방의 심장을 뛰게 할 실전 카톡 한마디
-            </h4>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              ${loveCheatKeys.map((ck, idx) => {
-                const targetName = ck.target || ck.name || (idx === 0 ? mA.name : mB.name);
-                return `
-                <div class="p-5 rounded-2xl bg-[#090a0f]/90 border border-white/[0.08] space-y-2">
-                  <span class="px-2.5 py-0.5 rounded-full text-xs font-black ${idx === 0 ? "bg-pink-400 text-[#060608]" : "bg-sky-400 text-[#060608]"}">${targetName}님을 심쿵하게 만드는 한마디</span>
-                  <p class="text-sm sm:text-base font-black text-[#f4f4f6] pt-1">${ck.magicLine}</p>
-                  <p class="text-xs text-[#8e929f] leading-relaxed">${ck.tip}</p>
-                </div>
-              `;
-              }).join("")}
+        <!-- 3. 데이터로 본 두 사람의 대화 온도 & 맞춤 소통 가이드 ('심장을 뛰게 할 카톡 한마디' 대체) -->
+        <div class="rounded-[32px] p-6 sm:p-8 bg-gradient-to-r from-pink-500/12 via-[#12131d] to-sky-500/12 border border-pink-400/25 space-y-5">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <span class="px-3 py-1 rounded-full text-xs font-black bg-amber-300 text-[#060608]">💡 대화 온도 &amp; 소통 리듬 가이드</span>
+              <h4 class="text-lg sm:text-2xl font-black text-[#f4f4f6] mt-2 flex items-center gap-2">
+                데이터로 본 <span class="text-pink-300">${mA.name}</span> &amp; <span class="text-sky-300">${mB.name}</span>의 카톡 호흡 맞출 포인트
+              </h4>
+              <p class="text-xs sm:text-sm text-[#8e929f] mt-1">억지스러운 멘트 대신 두 사람의 실제 답장 속도·문장 길이·리액션 습관에서 찾은 편안한 대화 팁입니다.</p>
             </div>
           </div>
-        ` : ""}
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="p-5 rounded-2xl bg-[#090a0f]/90 border border-white/[0.08] space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-black bg-pink-400 text-[#060608]">⏱️ 답장 템포 궁합</span>
+                <span class="text-xs font-bold text-pink-300">${speedA}분 vs ${speedB}분</span>
+              </div>
+              <p class="text-sm sm:text-base font-black text-[#f4f4f6] pt-1 break-keep">
+                ${Math.abs(speedA - speedB) <= 5
+                  ? "서로 답장 간격이 비슷해 기다림 스트레스가 적은 안정형 템포"
+                  : speedA < speedB
+                  ? `${mA.name}님은 빠른 실시간 소통파, ${mB.name}님은 여유 있게 정리해 답하는 스타일`
+                  : `${mB.name}님은 빠른 실시간 소통파, ${mA.name}님은 여유 있게 정리해 답하는 스타일`}
+              </p>
+              <p class="text-xs text-[#8e929f] leading-relaxed break-keep">
+                ${Math.abs(speedA - speedB) <= 5
+                  ? "지금처럼 자연스러운 속도를 유지하면 대화 피로도 없이 오래 대화를 이어갈 수 있습니다."
+                  : "답장이 조금 늦더라도 단답으로 끊지 않고 성의 있게 이어가고 있으니 속도 차이로 오해할 필요가 전혀 없습니다."}
+              </p>
+            </div>
+
+            <div class="p-5 rounded-2xl bg-[#090a0f]/90 border border-white/[0.08] space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-black bg-sky-400 text-[#060608]">💬 말투·문장 호흡</span>
+                <span class="text-xs font-bold text-sky-300">동조율 ${dyadicLsm}%</span>
+              </div>
+              <p class="text-sm sm:text-base font-black text-[#f4f4f6] pt-1 break-keep">
+                평균 ${mA.avgLen}자 vs ${mB.avgLen}자 • 웃음·공감 리액션 ${mA.laughs + mB.laughs}회
+              </p>
+              <p class="text-xs text-[#8e929f] leading-relaxed break-keep">
+                ${dyadicLsm >= 75
+                  ? "자주 쓰는 말투와 문장 호흡이 이미 많이 닮아 있어, 일상적인 소소한 이야기를 나눌 때 가장 케미가 빛납니다."
+                  : "한 명은 핵심 위주, 한 명은 풍부한 표현 위주로 대화해 서로의 빈자리를 채워주는 상호보완형 대화 스타일입니다."}
+              </p>
+            </div>
+
+            <div class="p-5 rounded-2xl bg-[#090a0f]/90 border border-white/[0.08] space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-black bg-purple-400 text-[#060608]">🌙 베스트 대화 타이밍</span>
+                <span class="text-xs font-bold text-purple-300">심야 비중 ${lateNightRatio}%</span>
+              </div>
+              <p class="text-sm sm:text-base font-black text-[#f4f4f6] pt-1 break-keep">
+                ${lateNightRatio >= 22
+                  ? "하루 일과를 마친 밤 10시 이후 감성 대화가 가장 잘 통하는 커플"
+                  : "낮과 저녁 시간대 일상 공유가 활발하고 건강한 텐션을 유지하는 커플"}
+              </p>
+              <p class="text-xs text-[#8e929f] leading-relaxed break-keep">
+                질문 횟수(${mA.questions + mB.questions}회)가 활발할수록 대화가 길어지므로, 근황 보고 끝에 가벼운 질문 하나를 덧붙이면 티키타카가 훨씬 잘 이어집니다.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     `;
   } else {
-    // 탭 4: 실제 설렘 대화 하이라이트 & 관계 조언
-    const rawHighlights = (currentData.romanceHighlights && currentData.romanceHighlights.length > 0)
+    // 탭 4: 실제 설렘 대화 하이라이트 & 관계 조언 (선택된 페어 전용 실제 연속 대화를 최우선 표시!)
+    const rawHighlights = (pairData && pairData.highlights && pairData.highlights.length > 0)
+      ? pairData.highlights
+      : (currentData.romanceHighlights && currentData.romanceHighlights.length > 0)
       ? currentData.romanceHighlights
       : [
           {
             title: "다정한 안부와 칼답이 오간 순간",
-            badge: "설렘 하이라이트",
+            badge: "설렘 하이라이트 01",
             messages: [
               { sender: mA.name, time: "밤 11:42", text: (mA.quotes && mA.quotes[0]) ? mA.quotes[0] : "오늘 하루도 고생 많았어! 집 들어가면 카톡 해줘 ♥" },
               { sender: mB.name, time: "밤 11:43", text: (mB.quotes && mB.quotes[0]) ? mB.quotes[0] : "응응 방금 도착했어! 너랑 연락하니까 피곤한 거 싹 풀린다 ㅎㅎ" }
             ],
             commentary: "서로의 하루를 챙기는 다정한 선톡과 1분 만의 칼답에서 깊은 호감이 드러납니다."
+          },
+          {
+            title: "주말 약속과 닮아가는 말투",
+            badge: "설렘 하이라이트 02",
+            messages: [
+              { sender: mB.name, time: "오후 6:15", text: (mB.quotes && mB.quotes[1]) ? mB.quotes[1] : "이번 주말에 날씨 좋대! 같이 맛있는 거 먹으러 갈래?" },
+              { sender: mA.name, time: "오후 6:16", text: (mA.quotes && mA.quotes[1]) ? mA.quotes[1] : "완전 좋아!! 안 그래도 너한테 주말에 보자고 하려 했는데 텔레파시 통했네 ㅋㅋㅋ" }
+            ],
+            commentary: "서로를 향한 호감 표현과 일상 공유가 자연스럽게 이어지는 그린라이트 대화입니다."
           }
         ];
 
@@ -1785,7 +2300,7 @@ function renderRomanceModeUI(container) {
               <span class="text-xs font-black ${isPersonA ? "text-pink-300" : "text-sky-300"}">${speakerName}</span>
               <span class="text-[10px] text-[#8e929f]">${msg.time || hl.date || ""}</span>
             </div>
-            <div class="max-w-xl px-4 py-3 rounded-2xl text-xs sm:text-sm font-semibold leading-relaxed ${isPersonA ? "bg-pink-500/15 text-[#f4f4f6] border border-pink-400/30 rounded-tl-sm" : "bg-sky-500/15 text-[#f4f4f6] border border-sky-400/30 rounded-tr-sm"}">
+            <div class="max-w-full px-4 py-3 rounded-2xl text-xs sm:text-sm font-semibold leading-relaxed ${isPersonA ? "bg-pink-500/15 text-[#f4f4f6] border border-pink-400/30 rounded-tl-sm" : "bg-sky-500/15 text-[#f4f4f6] border border-sky-400/30 rounded-tr-sm"}">
               "${msg.text}"
             </div>
           </div>
@@ -1797,15 +2312,17 @@ function renderRomanceModeUI(container) {
       const hlNote = hl.commentary || hl.academicNote || "";
 
       return `
-        <div class="p-5 sm:p-6 rounded-3xl bg-[#090a0f] border border-white/[0.07] space-y-4">
-          <div class="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.06] pb-3">
-            <span class="text-sm sm:text-base font-black text-[#f4f4f6]">${hlTitle}</span>
-            <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-pink-500/15 text-pink-300 border border-pink-400/30">${hlBadge}</span>
+        <div class="p-5 sm:p-6 rounded-3xl bg-[#090a0f] border border-white/[0.07] flex flex-col justify-between space-y-4 shadow-[0_4px_25px_rgba(0,0,0,0.3)]">
+          <div class="space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.06] pb-3">
+              <span class="text-sm sm:text-base font-black text-[#f4f4f6]">${hlTitle}</span>
+              <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-pink-500/15 text-pink-300 border border-pink-400/30">${hlBadge}</span>
+            </div>
+            <div class="space-y-3">
+              ${bubbles}
+            </div>
           </div>
-          <div class="space-y-3">
-            ${bubbles}
-          </div>
-          ${hlNote ? `<p class="text-xs sm:text-sm text-[#d4d7e0] bg-white/[0.03] px-4 py-2.5 rounded-xl border border-white/[0.05]">💡 ${hlNote}</p>` : ""}
+          ${hlNote ? `<p class="text-xs sm:text-sm text-[#d4d7e0] bg-white/[0.03] px-4 py-2.5 rounded-xl border border-white/[0.05] mt-auto">💡 ${hlNote}</p>` : ""}
         </div>
       `;
     }).join("");
@@ -1819,7 +2336,7 @@ function renderRomanceModeUI(container) {
           <p class="text-xs sm:text-sm text-[#8e929f] mt-1">대화 속에서 호감이 가장 진하게 묻어났던 순간과 두 분을 위한 맞춤 연애 조언입니다.</p>
         </div>
 
-        <div class="space-y-4">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
           ${highlightSectionsHtml}
         </div>
 
@@ -1871,15 +2388,151 @@ let villainGameHp = 100;
 let villainGameHits = 0;
 let villainGameCombo = 0;
 let villainGameComboTimer = null;
+let villainGameBounceTimer = null;
 let villainGameStamps = [];
+let villainGameSoundEnabled = true;
+let villainAudioCtx = null;
 
 const VILLAIN_WEAPONS = [
-  { id: "slipper", icon: "🩴", name: "진실의 삼선 슬리퍼", dmg: 15, hitText: "짝!! 정신차려!", stamp: "🩴", color: "text-amber-300", badge: "빠른 연타" },
-  { id: "ppt", icon: "📑", name: "100장짜리 PPT 뭉치", dmg: 35, hitText: "네가 안 한 장표 폭격!!", stamp: "📄", color: "text-sky-300", badge: "팩트 폭격" },
-  { id: "fstamp", icon: "🔨", name: "F학점 빨간 도장 망치", dmg: 60, hitText: "학점 F 쾅쾅!!", stamp: "[F학점]", color: "text-rose-400", badge: "학점 삭제" },
-  { id: "kakao", icon: "📢", name: "새벽 3시 카톡 알림 폭탄", dmg: 85, hitText: "읽씹 금지!! 단톡 소환!", stamp: "💬1", color: "text-yellow-300", badge: "잠수 격파" },
-  { id: "laser", icon: "⚡", name: "발표자 명단 제외 광선검", dmg: 150, hitText: "이름 빼버린다 CRIT!!", stamp: "[제명]", color: "text-emerald-300", badge: "궁극 처형" }
+  { id: "slipper", icon: "🩴", name: "진실의 삼선 슬리퍼", dmg: 15, hitText: "짝!! 정신차려!", stamp: "🩴", color: "text-amber-300", ringColor: "border-amber-300", badge: "빠른 스냅 연타", particles: ["🩴", "💥", "💢", "✨"] },
+  { id: "ppt", icon: "📑", name: "100장짜리 PPT 뭉치", dmg: 35, hitText: "네가 안 한 장표 폭격!!", stamp: "📄", color: "text-sky-300", ringColor: "border-sky-300", badge: "장표 다발 투척", particles: ["📄", "📊", "📑", "📎", "💨"] },
+  { id: "fstamp", icon: "🔨", name: "F학점 빨간 도장 망치", dmg: 60, hitText: "학점 F 쾅쾅!!", stamp: "[F학점]", color: "text-rose-400", ringColor: "border-rose-500", badge: "묵직한 지진 강타", particles: ["🔨", "💢", "💥", "🩸", "⚡"] },
+  { id: "kakao", icon: "📢", name: "새벽 3시 카톡 알림 폭탄", dmg: 85, hitText: "읽씹 금지!! 단톡 소환!", stamp: "💬1", color: "text-yellow-300", ringColor: "border-yellow-300", badge: "알림 연쇄 폭발", particles: ["💬", "📢", "🔔", "⚡", "💥"] },
+  { id: "laser", icon: "⚡", name: "발표자 명단 제외 광선검", dmg: 150, hitText: "이름 빼버린다 CRIT!!", stamp: "[제명]", color: "text-emerald-300", ringColor: "border-emerald-300", badge: "궁극 레이저 처형", particles: ["⚡", "✨", "💀", "🔥", "💥"] }
 ];
+
+function toggleVillainGameSound(event) {
+  if (event) event.stopPropagation();
+  villainGameSoundEnabled = !villainGameSoundEnabled;
+  const btn = document.getElementById("villainSoundToggleBtn");
+  if (btn) {
+    btn.innerHTML = villainGameSoundEnabled
+      ? `<i class="fa-solid fa-volume-high text-amber-300"></i> <span>타격음 ON</span>`
+      : `<i class="fa-solid fa-volume-xmark text-[#8e929f]"></i> <span>타격음 OFF</span>`;
+  }
+}
+
+function playVillainHitSound(weaponId, isKo) {
+  if (!villainGameSoundEnabled) return;
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    if (!villainAudioCtx) villainAudioCtx = new AudioCtx();
+    if (villainAudioCtx.state === "suspended") villainAudioCtx.resume();
+
+    const now = villainAudioCtx.currentTime;
+
+    if (weaponId === "slipper") {
+      // 찰진 슬리퍼 스냅음 (고주파 노이즈 + 짧은 스냅 톤)
+      const osc = villainAudioCtx.createOscillator();
+      const gain = villainAudioCtx.createGain();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(520, now);
+      osc.frequency.exponentialRampToValueAtTime(110, now + 0.09);
+      gain.gain.setValueAtTime(0.28, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+      osc.connect(gain);
+      gain.connect(villainAudioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 0.09);
+    } else if (weaponId === "ppt") {
+      // 두꺼운 종이 뭉치 타격음
+      const osc = villainAudioCtx.createOscillator();
+      const gain = villainAudioCtx.createGain();
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(240, now);
+      osc.frequency.exponentialRampToValueAtTime(55, now + 0.14);
+      gain.gain.setValueAtTime(0.25, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+      osc.connect(gain);
+      gain.connect(villainAudioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 0.14);
+    } else if (weaponId === "fstamp") {
+      // 묵직한 망치 내려찍기 중저음 임팩트
+      const osc = villainAudioCtx.createOscillator();
+      const gain = villainAudioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(150, now);
+      osc.frequency.exponentialRampToValueAtTime(28, now + 0.24);
+      gain.gain.setValueAtTime(0.4, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+      osc.connect(gain);
+      gain.connect(villainAudioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 0.24);
+    } else if (weaponId === "kakao") {
+      // 카톡 알림음 2음계 + 폭발 임팩트
+      const osc1 = villainAudioCtx.createOscillator();
+      const gain1 = villainAudioCtx.createGain();
+      osc1.type = "sine";
+      osc1.frequency.setValueAtTime(880, now);
+      osc1.frequency.setValueAtTime(1174.66, now + 0.06);
+      gain1.gain.setValueAtTime(0.22, now);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+      osc1.connect(gain1);
+      gain1.connect(villainAudioCtx.destination);
+      osc1.start(now);
+      osc1.stop(now + 0.18);
+    } else {
+      // 광선검 레이저 슬래시
+      const osc = villainAudioCtx.createOscillator();
+      const gain = villainAudioCtx.createGain();
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(960, now);
+      osc.frequency.exponentialRampToValueAtTime(68, now + 0.26);
+      gain.gain.setValueAtTime(0.32, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.26);
+      osc.connect(gain);
+      gain.connect(villainAudioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 0.26);
+    }
+
+    if (isKo) {
+      const koOsc = villainAudioCtx.createOscillator();
+      const koGain = villainAudioCtx.createGain();
+      koOsc.type = "triangle";
+      koOsc.frequency.setValueAtTime(440, now + 0.08);
+      koOsc.frequency.exponentialRampToValueAtTime(95, now + 0.45);
+      koGain.gain.setValueAtTime(0.3, now + 0.08);
+      koGain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+      koOsc.connect(koGain);
+      koGain.connect(villainAudioCtx.destination);
+      koOsc.start(now + 0.08);
+      koOsc.stop(now + 0.45);
+    }
+  } catch (e) {
+    // 오디오 컨텍스트 제한 시 무시
+  }
+}
+
+function getVillainDamageOverlayHtml(hp) {
+  if (hp > 70) {
+    return `<span class="absolute -top-2 -right-2 px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-300 text-[#060608] shadow">😎 뻔뻔함 풀충전</span>`;
+  }
+  if (hp > 35) {
+    return `
+      <span class="absolute -top-2 -left-2 text-lg sm:text-xl animate-bounce">💦</span>
+      <span class="absolute top-2 -right-2 text-base sm:text-lg rotate-12">🩹</span>
+      <span class="absolute -bottom-2 right-0 px-2 py-0.5 rounded-full text-[10px] font-black bg-orange-500 text-white shadow">😰 당황·식은땀</span>
+    `;
+  }
+  if (hp > 0) {
+    return `
+      <span class="absolute -top-5 left-1/2 -translate-x-1/2 text-lg sm:text-xl animate-spin">💫</span>
+      <span class="absolute top-0 -left-2 text-base sm:text-lg">💢</span>
+      <span class="absolute bottom-1 -right-2 text-base sm:text-lg">🩹</span>
+      <span class="absolute -bottom-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-600 text-white shadow whitespace-nowrap">😭 멘탈 붕괴 직전</span>
+    `;
+  }
+  return `
+    <span class="absolute -top-8 left-1/2 -translate-x-1/2 text-2xl sm:text-3xl animate-bounce">👻</span>
+    <span class="absolute -top-2 -right-3 text-xl sm:text-2xl rotate-12">🏳️</span>
+    <span class="absolute top-1 -left-2 text-base sm:text-lg">💫</span>
+    <span class="absolute -bottom-2 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-600 text-white border border-amber-300 shadow whitespace-nowrap">💀 영혼 가출 K.O.</span>
+  `;
+}
 
 function selectVillainGameTarget(name) {
   villainGameTargetName = name;
@@ -1887,13 +2540,35 @@ function selectVillainGameTarget(name) {
   villainGameHits = 0;
   villainGameCombo = 0;
   villainGameStamps = [];
-  const container = document.getElementById("modeDedicatedSection");
+  const container = document.getElementById("modeDedicatedViewContainer") || document.getElementById("modeDedicatedSection");
   if (container) renderVillainModeUI(container);
+}
+
+function getVillainWeaponCursorUrl(emoji) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48"><text x="24" y="34" font-size="30" text-anchor="middle">${emoji}</text></svg>`;
+  return `url('data:image/svg+xml;utf8,${encodeURIComponent(svg)}') 24 24, crosshair`;
+}
+
+function moveVillainWeaponCursor(event) {
+  const arenaBox = document.getElementById("villainArenaBox");
+  const cursorEl = document.getElementById("villainFloatingWeaponCursor");
+  if (!arenaBox || !cursorEl || !event) return;
+  const rect = arenaBox.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+  cursorEl.style.left = `${x}px`;
+  cursorEl.style.top = `${y}px`;
+  cursorEl.classList.remove("opacity-0");
+}
+
+function hideVillainWeaponCursor() {
+  const cursorEl = document.getElementById("villainFloatingWeaponCursor");
+  if (cursorEl) cursorEl.classList.add("opacity-0");
 }
 
 function selectVillainWeapon(idx) {
   villainGameWeaponIdx = Number(idx) || 0;
-  const container = document.getElementById("modeDedicatedSection");
+  const container = document.getElementById("modeDedicatedViewContainer") || document.getElementById("modeDedicatedSection");
   if (container) renderVillainModeUI(container);
 }
 
@@ -1902,7 +2577,7 @@ function resetVillainGame() {
   villainGameHits = 0;
   villainGameCombo = 0;
   villainGameStamps = [];
-  const container = document.getElementById("modeDedicatedSection");
+  const container = document.getElementById("modeDedicatedViewContainer") || document.getElementById("modeDedicatedSection");
   if (container) renderVillainModeUI(container);
 }
 
@@ -1916,8 +2591,8 @@ function hitVillainTarget(event) {
   const targetProfile = profiles.find(p => p.name === villainGameTargetName) || topVillain;
   const weapon = VILLAIN_WEAPONS[villainGameWeaponIdx] || VILLAIN_WEAPONS[0];
 
+  const wasAlive = villainGameHp > 0;
   if (villainGameHp <= 0) {
-    // 이미 K.O. 상태여도 계속 두들겨 패기 가능
     villainGameHits += 1;
     villainGameCombo += 1;
   } else {
@@ -1929,13 +2604,15 @@ function hitVillainTarget(event) {
       triggerConfetti();
     }
   }
+  const justKo = wasAlive && villainGameHp === 0;
+  playVillainHitSound(weapon.id, justKo);
 
-  if (villainGameStamps.length < 14) {
+  if (villainGameStamps.length < 16) {
     villainGameStamps.push({
       label: weapon.stamp,
-      top: Math.floor(15 + Math.random() * 68),
-      left: Math.floor(15 + Math.random() * 68),
-      rot: Math.floor(-28 + Math.random() * 56)
+      top: Math.floor(12 + Math.random() * 72),
+      left: Math.floor(18 + Math.random() * 64),
+      rot: Math.floor(-32 + Math.random() * 64)
     });
   }
 
@@ -1944,10 +2621,17 @@ function hitVillainTarget(event) {
     villainGameCombo = 0;
     const comboEl = document.getElementById("villainComboBadge");
     if (comboEl) comboEl.classList.add("opacity-0");
-  }, 2200);
+  }, 2400);
 
-  // DOM 즉시 타격 애니메이션 & 상태 갱신
+  // DOM 요소 참조
+  const arenaBox = document.getElementById("villainArenaBox");
   const avatarBox = document.getElementById("villainSandbagBox");
+  const headEl = document.getElementById("villainRagdollHead");
+  const armLeftEl = document.getElementById("villainArmLeft");
+  const armRightEl = document.getElementById("villainArmRight");
+  const legLeftEl = document.getElementById("villainLegLeft");
+  const legRightEl = document.getElementById("villainLegRight");
+  const dmgOverlayEl = document.getElementById("villainDamageOverlay");
   const hpBar = document.getElementById("villainHpBar");
   const hpText = document.getElementById("villainHpText");
   const speechText = document.getElementById("villainSpeechBubble");
@@ -1955,27 +2639,191 @@ function hitVillainTarget(event) {
   const hitCountEl = document.getElementById("villainHitCount");
   const koBanner = document.getElementById("villainKoBanner");
   const stampsLayer = document.getElementById("villainStampsLayer");
+  const cursorInnerEl = document.getElementById("villainFloatingWeaponCursorInner");
 
-  if (avatarBox) {
-    avatarBox.style.transform = `scale(0.84, 1.14) rotate(${villainGameHits % 2 === 0 ? "-9deg" : "9deg"})`;
+  // 마우스 따라다니는 무기 커서 자체도 타격 순간 스윙 반동 애니메이션
+  if (cursorInnerEl) {
+    cursorInnerEl.style.transform = "rotate(-55deg) scale(1.45)";
     setTimeout(() => {
-      if (avatarBox) {
-        avatarBox.style.transform = villainGameHp <= 0 ? "scale(1.08, 0.58) rotate(-14deg) translateY(18px)" : "scale(1) rotate(0deg)";
-      }
+      if (cursorInnerEl) cursorInnerEl.style.transform = "rotate(-12deg) scale(1)";
     }, 130);
+  }
 
-    // 플로팅 데미지 팝업 생성
-    const floatEl = document.createElement("div");
-    floatEl.className = `pointer-events-none absolute z-30 font-black text-base sm:text-xl ${weapon.color} drop-shadow-[0_4px_10px_rgba(0,0,0,0.9)] transition-all duration-500`;
-    floatEl.style.top = `${20 + Math.floor(Math.random() * 40)}%`;
-    floatEl.style.left = `${20 + Math.floor(Math.random() * 55)}%`;
-    floatEl.innerText = `${weapon.icon} -${weapon.dmg} ${weapon.hitText}`;
-    avatarBox.parentElement.appendChild(floatEl);
+  // 1. 클릭 위치 기반 방향성 물리 넉백(Directional Knockback) + 관절형 래그돌 사지 파닥거림
+  if (avatarBox && arenaBox) {
+    const arenaRect = arenaBox.getBoundingClientRect();
+    const boxRect = avatarBox.getBoundingClientRect();
+    const centerX = boxRect.left + boxRect.width / 2;
+    const centerY = boxRect.top + boxRect.height / 2;
+
+    const clickX = (event && event.clientX) ? event.clientX : centerX + (Math.random() * 40 - 20);
+    const clickY = (event && event.clientY) ? event.clientY : centerY + (Math.random() * 40 - 20);
+
+    // 타격 지점 반대 방향으로 튕겨나가는 벡터 산출
+    const deltaX = centerX - clickX;
+    const deltaY = centerY - clickY;
+    const forceMult = Math.min(2.2, 0.85 + weapon.dmg / 95);
+    const knockX = Math.max(-46, Math.min(46, Math.round((deltaX || (villainGameHits % 2 === 0 ? 22 : -22)) * 0.45 * forceMult)));
+    const knockY = Math.max(-28, Math.min(28, Math.round((deltaY || -16) * 0.35 * forceMult)));
+    const tiltDeg = Math.max(-32, Math.min(32, Math.round((knockX >= 0 ? 1 : -1) * (14 + weapon.dmg * 0.11))));
+
+    // Squash & Stretch (타격 순간 납작해지며 반대쪽으로 튕김)
+    avatarBox.style.transition = "transform 75ms cubic-bezier(0.2, 0.9, 0.3, 1.3)";
+    avatarBox.style.transform = `translate(${knockX}px, ${knockY}px) rotate(${tiltDeg}deg) scale(1.16, 0.82)`;
+
+    // 머리·양팔·양다리 관절 독립 회전
+    if (headEl) {
+      const headRot = (villainGameHits % 2 === 0 ? -24 : 24) + Math.round(knockX * 0.3);
+      headEl.style.transform = `rotate(${headRot}deg) translateY(-4px) scale(1.06, 0.92)`;
+    }
+    if (armLeftEl) {
+      const armLRot = 45 + Math.floor(Math.random() * 75);
+      armLeftEl.style.transform = `rotate(${armLRot}deg)`;
+    }
+    if (armRightEl) {
+      const armRRot = -(45 + Math.floor(Math.random() * 75));
+      armRightEl.style.transform = `rotate(${armRRot}deg)`;
+    }
+    if (legLeftEl) {
+      const legLRot = 18 + Math.floor(Math.random() * 42);
+      legLeftEl.style.transform = `rotate(${legLRot}deg)`;
+    }
+    if (legRightEl) {
+      const legRRot = -(18 + Math.floor(Math.random() * 42));
+      legRightEl.style.transform = `rotate(${legRRot}deg)`;
+    }
+
+    if (villainGameBounceTimer) clearTimeout(villainGameBounceTimer);
+    villainGameBounceTimer = setTimeout(() => {
+      if (!avatarBox) return;
+      avatarBox.style.transition = "transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1)";
+      if (villainGameHp <= 0) {
+        avatarBox.style.transform = "translate(0px, 24px) rotate(-78deg) scale(1.05, 0.88)";
+        if (headEl) headEl.style.transform = "rotate(-18deg)";
+        if (armLeftEl) armLeftEl.style.transform = "rotate(115deg)";
+        if (armRightEl) armRightEl.style.transform = "rotate(-95deg)";
+        if (legLeftEl) legLeftEl.style.transform = "rotate(28deg)";
+        if (legRightEl) legRightEl.style.transform = "rotate(-32deg)";
+      } else {
+        avatarBox.style.transform = "translate(0px, 0px) rotate(0deg) scale(1)";
+        if (headEl) headEl.style.transform = "rotate(0deg) scale(1)";
+        if (armLeftEl) armLeftEl.style.transform = "rotate(14deg)";
+        if (armRightEl) armRightEl.style.transform = "rotate(-14deg)";
+        if (legLeftEl) legLeftEl.style.transform = "rotate(4deg)";
+        if (legRightEl) legRightEl.style.transform = "rotate(-4deg)";
+      }
+    }, 95);
+
+    // 2. 고위력 무기 타격 시 아레나 지진
+    if (weapon.dmg >= 60) {
+      arenaBox.classList.remove("villain-arena-shake");
+      void arenaBox.offsetWidth;
+      arenaBox.classList.add("villain-arena-shake");
+    }
+
+    // 아레나 내부 상대 좌표 (마우스 커서 위치 & 타겟 중심 좌표)
+    const relX = Math.max(24, Math.min(arenaRect.width - 24, clickX - arenaRect.left));
+    const relY = Math.max(24, Math.min(arenaRect.height - 24, clickY - arenaRect.top));
+    const targetRelX = centerX - arenaRect.left + (Math.random() * 28 - 14);
+    const targetRelY = centerY - arenaRect.top - 12 + (Math.random() * 28 - 14);
+
+    // 3. 마우스 커서로부터 무기가 날아가 타겟에 꽂히는 발사체(Projectile) + 타격 스윙 연출
+    const projEl = document.createElement("div");
+    projEl.className = "pointer-events-none absolute z-40 select-none transition-all duration-150 ease-out";
+    projEl.style.left = `${relX}px`;
+    projEl.style.top = `${relY}px`;
+    projEl.style.transform = "translate(-50%, -50%) rotate(-45deg) scale(1.15)";
+    projEl.innerHTML = `<div class="text-4xl sm:text-5xl drop-shadow-[0_10px_20px_rgba(0,0,0,0.95)]">${weapon.icon}</div>`;
+    arenaBox.appendChild(projEl);
+
     requestAnimationFrame(() => {
-      floatEl.style.transform = "translateY(-42px) scale(1.12)";
+      projEl.style.left = `${targetRelX}px`;
+      projEl.style.top = `${targetRelY}px`;
+      projEl.style.transform = "translate(-50%, -50%) rotate(320deg) scale(1.45)";
+    });
+    setTimeout(() => projEl.remove(), 170);
+
+    // 타격 지점 무기 슬래시/임팩트 이펙트
+    const weaponFxEl = document.createElement("div");
+    weaponFxEl.className = "pointer-events-none absolute z-30 select-none";
+    weaponFxEl.style.left = `${targetRelX}px`;
+    weaponFxEl.style.top = `${targetRelY}px`;
+
+    if (weapon.id === "laser") {
+      const slashAngle = Math.floor(-45 + Math.random() * 90);
+      weaponFxEl.innerHTML = `
+        <div class="w-64 sm:w-80 h-2.5 rounded-full bg-gradient-to-r from-transparent via-emerald-300 to-transparent shadow-[0_0_30px_#10b981]" style="transform: translate(-50%, -50%) rotate(${slashAngle}deg);"></div>
+      `;
+    } else {
+      weaponFxEl.innerHTML = `<div class="text-5xl sm:text-6xl drop-shadow-[0_10px_20px_rgba(0,0,0,0.9)] transition-all duration-200" style="transform: translate(-50%, -50%) rotate(-35deg) scale(1.3);">${weapon.icon}</div>`;
+    }
+    arenaBox.appendChild(weaponFxEl);
+    requestAnimationFrame(() => {
+      const inner = weaponFxEl.firstElementChild;
+      if (inner) {
+        inner.style.transform = weapon.id === "laser"
+          ? "translate(-50%, -50%) scaleX(1.35) scaleY(0.2)"
+          : "translate(-50%, -50%) rotate(25deg) scale(0.85)";
+        inner.style.opacity = "0";
+      }
+    });
+    setTimeout(() => weaponFxEl.remove(), 240);
+
+    // 4. 원형 충격파 링 (Shockwave Ring)
+    const ringEl = document.createElement("div");
+    ringEl.className = `pointer-events-none absolute z-20 w-10 h-10 rounded-full border-4 ${weapon.ringColor || "border-rose-400"} opacity-90 transition-all duration-300 ease-out`;
+    ringEl.style.left = `${targetRelX}px`;
+    ringEl.style.top = `${targetRelY}px`;
+    ringEl.style.transform = "translate(-50%, -50%) scale(0.3)";
+    arenaBox.appendChild(ringEl);
+    requestAnimationFrame(() => {
+      ringEl.style.transform = `translate(-50%, -50%) scale(${weapon.dmg >= 85 ? 3.4 : 2.3})`;
+      ringEl.style.opacity = "0";
+    });
+    setTimeout(() => ringEl.remove(), 320);
+
+    // 5. 방사형 타격 파티클
+    const particlePool = weapon.particles || ["💥", "💢", "✨"];
+    const particleCount = weapon.id === "ppt" ? 8 : weapon.dmg >= 60 ? 7 : 5;
+    for (let i = 0; i < particleCount; i++) {
+      const pEl = document.createElement("span");
+      pEl.className = "pointer-events-none absolute z-30 text-base sm:text-xl select-none transition-all duration-500 ease-out";
+      pEl.innerText = particlePool[i % particlePool.length];
+      pEl.style.left = `${targetRelX}px`;
+      pEl.style.top = `${targetRelY}px`;
+      pEl.style.transform = "translate(-50%, -50%) scale(0.8)";
+      arenaBox.appendChild(pEl);
+
+      const angle = (Math.PI * 2 * i) / particleCount + (Math.random() * 0.5 - 0.25);
+      const dist = 48 + Math.random() * 68;
+      const tx = Math.round(Math.cos(angle) * dist);
+      const ty = Math.round(Math.sin(angle) * dist) + (weapon.id === "ppt" ? 24 : 0);
+      const rot = Math.round(-140 + Math.random() * 280);
+
+      requestAnimationFrame(() => {
+        pEl.style.transform = `translate(calc(-50% + ${tx}px), calc(-50% + ${ty}px)) rotate(${rot}deg) scale(1.15)`;
+        pEl.style.opacity = "0";
+      });
+      setTimeout(() => pEl.remove(), 520);
+    }
+
+    // 6. 플로팅 데미지 팝업 생성
+    const floatEl = document.createElement("div");
+    floatEl.className = `pointer-events-none absolute z-40 font-black text-base sm:text-xl ${weapon.color} drop-shadow-[0_4px_12px_rgba(0,0,0,0.95)] transition-all duration-500 whitespace-nowrap`;
+    floatEl.style.left = `${targetRelX}px`;
+    floatEl.style.top = `${Math.max(24, targetRelY - 28)}px`;
+    floatEl.style.transform = "translate(-50%, 0) scale(0.95)";
+    floatEl.innerText = `${weapon.icon} -${weapon.dmg} ${weapon.hitText}`;
+    arenaBox.appendChild(floatEl);
+    requestAnimationFrame(() => {
+      floatEl.style.transform = "translate(-50%, -44px) scale(1.14)";
       floatEl.style.opacity = "0";
     });
     setTimeout(() => floatEl.remove(), 520);
+  }
+
+  if (dmgOverlayEl) {
+    dmgOverlayEl.innerHTML = getVillainDamageOverlayHtml(villainGameHp);
   }
 
   if (hpBar) {
@@ -2012,7 +2860,7 @@ function hitVillainTarget(event) {
     } else if (villainGameHp > 0) {
       speechText.innerText = `"살려주세요!! PPT 발표자 명단에서 제 이름만은 빼지 말아 주세요 ㅠㅠ 제발!!"`;
     } else {
-      speechText.innerText = `💀 [참교육 완료] "제가 무임승차 버러지였습니다... 지금 당장 결론 장표 30페이지 밤새서 만들겠습니다!!"`;
+      speechText.innerText = `💀 [참교육 완료] "제가 잘못했습니다... 지금 당장 결론 장표 30페이지 밤새서 만들겠습니다!!"`;
     }
   }
 
@@ -2023,6 +2871,32 @@ function hitVillainTarget(event) {
       koBanner.classList.add("hidden");
     }
   }
+}
+
+function getVillainRoleBadgeText(p) {
+  if (!p) return "";
+  if (!isVillainMildMode) return p.roleBadge || "";
+  if (p.mildRoleBadge) return p.mildRoleBadge;
+  return String(p.roleBadge || "")
+    .replace(/영혼 없는 네무새 버러지/g, "영혼 없는 네무새 요정")
+    .replace(/무임승차 버러지/g, "소통이 필요한 잠수러")
+    .replace(/연락두절 잠수 빌런/g, "소통이 필요한 잠수러")
+    .replace(/무임승차 빌런/g, "소통이 필요한 잠수러")
+    .replace(/버러지/g, "주의 요망")
+    .replace(/빌런/g, "잠수러");
+}
+
+function getVillainDiagnosisText(p) {
+  if (!p) return "";
+  if (!isVillainMildMode) return p.diagnosis || "";
+  if (p.mildDiagnosis) return p.mildDiagnosis;
+  return String(p.diagnosis || "")
+    .replace(/무임승차 버러지/g, "소통이 필요한 잠수러")
+    .replace(/네무새 버러지/g, "네무새 요정")
+    .replace(/버러지/g, "잠수러")
+    .replace(/빌런/g, "소통 주의 조원")
+    .replace(/강제 수면 중입니다/g, "응답을 기다리는 중입니다")
+    .replace(/증발했습니다/g, "소통이 뜸했습니다");
 }
 
 function renderVillainModeUI(container) {
@@ -2058,12 +2932,44 @@ function renderVillainModeUI(container) {
     "F": "bg-rose-500 text-white"
   };
 
-  // 서브 탭 네비게이션 바 (4번 탭을 빌런 참교육 게임으로 교체!)
+  // Phase 3-1: 조별과제 표현 수위 조절 토글 (🌶️ 매운맛 / 🌱 순한맛)
+  const spiceToggleBarHtml = `
+    <div class="flex flex-wrap items-center justify-between gap-3 p-4 rounded-3xl bg-[#0d0f16]/95 border border-emerald-400/25">
+      <div class="flex items-center gap-2.5">
+        <span class="px-2.5 py-1 rounded-full text-xs font-black ${isVillainMildMode ? "bg-emerald-400 text-[#060608]" : "bg-rose-500 text-white"}">
+          ${isVillainMildMode ? "🌱 순한맛 (평화 모드)" : "🌶️ 매운맛 (팩폭 모드)"}
+        </span>
+        <span class="text-xs sm:text-sm font-bold text-[#d4d7e0]">
+          ${isVillainMildMode
+            ? "실제 강의 조별과제 단톡방에도 부담 없이 공유할 수 있도록 위트 있고 완화된 표현으로 표시됩니다."
+            : "직설적인 팩폭 워딩이 적용된 기본 모드입니다. 단톡방 공유 시 순한맛으로 전환해 보세요!"}
+        </span>
+      </div>
+      <div class="flex items-center gap-1.5 p-1 rounded-2xl bg-[#141722] border border-white/[0.08]">
+        <button onclick="setVillainSpiceMode(false)" class="px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+          !isVillainMildMode
+            ? "bg-rose-500 text-white shadow-[0_2px_12px_rgba(244,63,94,0.35)]"
+            : "text-[#8e929f] hover:text-white"
+        }">
+          🌶️ 매운맛 (팩폭 모드)
+        </button>
+        <button onclick="setVillainSpiceMode(true)" class="px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+          isVillainMildMode
+            ? "bg-emerald-400 text-[#060608] shadow-[0_2px_12px_rgba(52,211,153,0.35)]"
+            : "text-[#8e929f] hover:text-white"
+        }">
+          🌱 순한맛 (평화 모드)
+        </button>
+      </div>
+    </div>
+  `;
+
+  // 서브 탭 네비게이션 바 (BUG-02-4: 4번 탭 이모지 중복 제거)
   const villainTabs = [
-    { key: "ranking", icon: "fa-trophy", label: "1. 기여도 시상식대 & 버러지 바닥" },
-    { key: "spotlight", icon: "fa-scale-unbalanced", label: "2. 하드캐리 1위 vs 빌런 1위" },
-    { key: "evidence", icon: "fa-comments", label: "3. 실제 단톡방 증거 대화" },
-    { key: "peer", icon: "fa-hand-fist", label: "4. 🥊 빌런 참교육 샌드백 게임" }
+    { key: "ranking", emoji: "🏆", label: isVillainMildMode ? "1. 기여도 시상식대 & 무임승차 주의보" : "1. 기여도 시상식대 & 버러지 바닥" },
+    { key: "spotlight", emoji: "⚖️", label: isVillainMildMode ? "2. 하드캐리 1위 vs 잠수러 1위" : "2. 하드캐리 1위 vs 빌런 1위" },
+    { key: "evidence", emoji: "💬", label: "3. 실제 단톡방 증거 대화" },
+    { key: "peer", emoji: "🥊", label: "4. 빌런 참교육 샌드백 게임" }
   ];
 
   const subTabNavHtml = `
@@ -2071,13 +2977,12 @@ function renderVillainModeUI(container) {
       ${villainTabs.map(t => {
         const isActive = currentVillainSubTab === t.key;
         return `
-          <button onclick="setVillainSubTab('${t.key}')" class="flex-1 min-w-[140px] py-3 px-4 rounded-2xl text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
+          <button onclick="setVillainSubTab('${t.key}')" class="flex-1 min-w-[140px] py-3 px-4 rounded-2xl text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
             isActive
               ? "bg-gradient-to-r from-emerald-400 to-teal-400 text-[#060608] shadow-[0_4px_20px_rgba(52,211,153,0.35)]"
               : "bg-white/[0.03] hover:bg-white/[0.08] text-[#d4d7e0]"
           }">
-            <i class="fa-solid ${t.icon}"></i>
-            <span>${t.label}</span>
+            <span>${t.emoji} ${t.label}</span>
           </button>
         `;
       }).join("")}
@@ -2091,16 +2996,16 @@ function renderVillainModeUI(container) {
         <div>
           <span class="text-xs font-black text-emerald-300">👑 멱살 잡고 캐리한 총대장 1위</span>
           <div class="text-2xl sm:text-3xl font-black text-[#f4f4f6] mt-1">${topHero.name}</div>
-          <span class="text-xs text-[#d4d7e0] font-bold">기여 점수 ${topHero.contributionScore}점 • 추천 학점 ${topHero.grade}</span>
+          <span class="text-xs text-[#d4d7e0] font-bold">기여 점수 ${topHero.contributionScore}점 • 실무 자료 ${topHero.workShareCount || 0}회 • 학점 ${topHero.grade}</span>
         </div>
         <img src="${hChar.img}" alt="${topHero.name}" class="w-16 h-16 rounded-full bg-[#11191a] p-1.5 border-2 border-emerald-400 object-contain shrink-0">
       </div>
 
       <div class="p-5 rounded-3xl bg-gradient-to-br from-rose-500/15 to-[#0d0f16] border border-rose-500/40 flex items-center justify-between">
         <div>
-          <span class="text-xs font-black text-rose-300">🐛 바닥 기는 무임승차 버러지 1위</span>
+          <span class="text-xs font-black text-rose-300">${isVillainMildMode ? "🌱 소통이 필요한 잠수러 1위" : "🐛 바닥 기는 무임승차 버러지 1위"}</span>
           <div class="text-2xl sm:text-3xl font-black text-[#f4f4f6] mt-1">${topVillain.name}</div>
-          <span class="text-xs text-rose-300 font-bold">빌런 위험도 ${topVillain.loafingScore}% • 추천 학점 ${topVillain.grade}</span>
+          <span class="text-xs text-rose-300 font-bold">${isVillainMildMode ? "소통 필요 지수" : "빌런 위험도"} ${topVillain.loafingScore}% • 실무 자료 ${topVillain.workShareCount || 0}회 • 학점 ${topVillain.grade}</span>
         </div>
         <img src="${vChar.img}" alt="${topVillain.name}" class="w-16 h-16 rounded-full bg-[#1c1116] p-1.5 border-2 border-rose-500 object-contain shrink-0">
       </div>
@@ -2119,7 +3024,7 @@ function renderVillainModeUI(container) {
   let subTabBodyHtml = "";
 
   if (currentVillainSubTab === "ranking") {
-    // 시상식대(Podium) 인원 vs 바닥 기어다니는 무임승차 버러지(Crawlers) 분리
+    // 시상식대(Podium) 인원 vs 바닥 인원(Crawlers) 분리
     let podiumMembers = contribSorted.filter(p => p.loafingScore < 55 && p.grade !== "F" && p.grade !== "C-").slice(0, 3);
     if (podiumMembers.length === 0) {
       podiumMembers = contribSorted.slice(0, Math.min(2, contribSorted.length));
@@ -2162,13 +3067,13 @@ function renderVillainModeUI(container) {
               <span class="absolute -bottom-1 -right-1 px-2 py-0.5 rounded-lg text-[11px] font-black ${gradeColors[p.grade] || "bg-emerald-400 text-black"}">학점 ${p.grade}</span>
             </div>
             <div class="text-base sm:text-xl font-black text-[#f4f4f6] pt-1">${p.name}</div>
-            <div class="text-xs font-bold text-emerald-300">기여도 ${p.contributionScore}점 · 비중 ${p.msgRatio}%</div>
+            <div class="text-xs font-bold text-emerald-300">기여도 ${p.contributionScore}점 · 자료공유 ${p.workShareCount || 0}회</div>
           </div>
 
           <!-- 단상 기둥 -->
           <div class="w-full ${heightClass} ${pillarStyle} rounded-t-3xl border-x border-white/[0.1] flex flex-col items-center justify-center p-3 text-center relative overflow-hidden">
             <span class="text-2xl sm:text-4xl font-black ${r === 1 ? "text-amber-300" : "text-[#f4f4f6]/80"}">${r}위</span>
-            <span class="text-[11px] sm:text-xs font-bold text-[#d4d7e0] mt-1 line-clamp-1">${p.roleBadge}</span>
+            <span class="text-[11px] sm:text-xs font-bold text-[#d4d7e0] mt-1 line-clamp-1">${getVillainRoleBadgeText(p)}</span>
           </div>
         </div>
       `;
@@ -2181,35 +3086,41 @@ function renderVillainModeUI(container) {
       const isWorst = p.name === topVillain.name;
 
       return `
-        <div class="p-4 sm:p-5 rounded-2xl bg-[#140b0f]/95 border ${isWorst ? "border-rose-500/50 shadow-[0_0_25px_rgba(244,63,94,0.2)]" : "border-rose-500/25"} flex flex-col sm:flex-row items-center justify-between gap-4 relative overflow-hidden">
-          <div class="flex items-center gap-3.5">
+        <div class="p-4 rounded-2xl bg-[#140b0f]/95 border ${isWorst ? "border-rose-500/50 shadow-[0_0_25px_rgba(244,63,94,0.2)]" : "border-rose-500/25"} flex items-center justify-between gap-4 relative overflow-hidden">
+          <div class="flex items-center gap-3.5 min-w-0">
             <!-- 바닥에서 납작하게 기어가는 아바타 연출 -->
             <div class="relative shrink-0">
-              <div class="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-[#1f1016] p-1.5 border border-rose-500/40 flex items-center justify-center" style="transform: rotate(-14deg) scale(1.06, 0.82);">
+              <div class="w-14 h-14 rounded-2xl bg-[#1f1016] p-1.5 border border-rose-500/40 flex items-center justify-center" style="transform: rotate(-14deg) scale(1.06, 0.82);">
                 <img src="${cInfo.img}" alt="${p.name}" class="w-full h-full object-contain opacity-90">
               </div>
-              <span class="absolute -top-2 -left-2 px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-600 text-white shadow">🐛 바닥 기는 중</span>
+              <span class="absolute -top-2 -left-2 px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-600 text-white shadow">${isVillainMildMode ? "🌱 주의 구간" : "🐛 바닥 기는 중"}</span>
             </div>
 
-            <div class="space-y-1 text-left">
+            <div class="space-y-1 text-left min-w-0">
               <div class="flex flex-wrap items-center gap-2">
-                <span class="text-lg sm:text-xl font-black text-rose-200">${p.name}</span>
+                <span class="text-base sm:text-lg font-black text-rose-200">${p.name}</span>
                 <span class="px-2 py-0.5 rounded text-xs font-black bg-rose-500 text-white">학점 ${p.grade}</span>
-                <span class="text-xs font-black text-rose-400">${p.roleBadge}</span>
+                <span class="text-xs font-black text-rose-400">${getVillainRoleBadgeText(p)}</span>
               </div>
-              <p class="text-xs text-[#d4d7e0] font-semibold">💬 단골 변명·단답: <span class="text-amber-200">"${excuseQuote}"</span></p>
-              <p class="text-[11px] text-[#8e929f]">대화 비중 ${p.msgRatio}% · 영혼 없는 대답 ${p.tokenRatio}% · 평균 답장 ${p.replySpeed}분 · 빌런 위험도 ${p.loafingScore}%</p>
+              <p class="text-xs text-[#d4d7e0] font-semibold truncate">💬 단골 변명·단답: <span class="text-amber-200">"${excuseQuote}"</span></p>
             </div>
           </div>
 
-          <button onclick="villainGameTargetName='${p.name}'; setVillainSubTab('peer')" class="px-4 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-400 text-white text-xs font-black shrink-0 transition cursor-pointer shadow-md flex items-center gap-1.5">
-            <i class="fa-solid fa-hand-fist"></i> 이 빌런 참교육하러 가기
-          </button>
+          <div class="flex items-center gap-4 shrink-0 text-right">
+            <div>
+              <span class="text-[10px] font-bold text-[#8e929f] block">기여 점수</span>
+              <span class="text-base sm:text-lg font-black text-amber-300">${p.contributionScore}점</span>
+            </div>
+            <div>
+              <span class="text-[10px] font-bold text-[#8e929f] block">${isVillainMildMode ? "주의 지수" : "빌런 위험도"}</span>
+              <span class="text-base sm:text-lg font-black text-rose-400">${p.loafingScore}%</span>
+            </div>
+          </div>
         </div>
       `;
     }).join("");
 
-    // 탭 1 하단 상세 순위표
+    // 탭 1 하단: 한눈에 비교하는 컴팩트 핵심 수치 성적표 (다중 역할 & 약속 이행률 & 미세 신호 채증 & 복합 빌런 연동)
     const leaderboardRowsHtml = activeList.map((p, idx) => {
       const cInfo = getCharData(p.cti);
       const gBadge = gradeColors[p.grade] || "bg-white/10 text-white";
@@ -2218,71 +3129,77 @@ function renderVillainModeUI(container) {
         ? (currentVillainSort === "villain" ? "bg-rose-500 text-white" : "bg-emerald-400 text-[#060608]")
         : "bg-white/[0.08] text-[#d4d7e0]";
 
+      // 다중 임무 및 복합 빌런 태그 뱃지 렌더링
+      const roles = (Array.isArray(p.assignedRoles) && p.assignedRoles.length > 0)
+        ? p.assignedRoles
+        : [p.roleBadge || "일반 조원"];
+      const multiTags = (Array.isArray(p.multiVillainTags) && p.multiVillainTags.length > 0)
+        ? p.multiVillainTags
+        : [];
+      const dRate = p.deliveryRate !== undefined ? p.deliveryRate : (p.contributionScore >= 60 ? 90 : 35);
+      const microCount = p.totalMicroFlaws !== undefined ? p.totalMicroFlaws : (p.tokenRatio >= 35 ? 3 : 0);
+      const ignoredCount = p.calloutsIgnored || 0;
+
       return `
-        <div class="p-5 rounded-3xl ${isVillainTop ? "bg-rose-500/[0.06] border border-rose-500/30" : "bg-[#121520]/90 border border-white/[0.07]"} space-y-4">
-          <div class="flex flex-wrap items-center justify-between gap-4">
-            <div class="flex items-center gap-3.5">
-              <div class="w-10 h-10 rounded-2xl font-black text-base flex items-center justify-center shrink-0 ${rankBadgeClass}">
-                ${idx + 1}위
-              </div>
-              <img src="${cInfo.img}" class="w-12 h-12 rounded-full bg-[#141722] p-1 border border-white/[0.12] object-contain shrink-0">
+        <tr class="border-b border-white/[0.06] last:border-none ${isVillainTop ? "bg-rose-500/[0.05] hover:bg-rose-500/[0.1]" : "hover:bg-white/[0.03]"} transition-colors">
+          <td class="py-3.5 px-3 text-center whitespace-nowrap">
+            <span class="inline-flex items-center justify-center w-7 h-7 rounded-lg font-black text-xs ${rankBadgeClass}">${idx + 1}</span>
+          </td>
+          <td class="py-3.5 px-3 whitespace-nowrap">
+            <div class="flex items-center gap-2.5">
+              <img src="${cInfo.img}" alt="${p.name}" class="w-9 h-9 rounded-full bg-[#141722] p-1 border border-white/[0.12] object-contain shrink-0">
               <div>
-                <div class="flex flex-wrap items-center gap-2">
-                  <span class="text-xl sm:text-2xl font-black text-[#f4f4f6]">${p.name}</span>
-                  <span class="text-xs sm:text-sm font-black px-2.5 py-0.5 rounded-lg ${gBadge}">학점 ${p.grade}</span>
-                  <span class="text-xs sm:text-sm font-black ${isVillainTop ? "text-rose-400" : "text-emerald-300"}">${p.roleBadge}</span>
+                <div class="flex items-center gap-1.5">
+                  <span class="text-sm sm:text-base font-black text-[#f4f4f6]">${p.name}</span>
+                  <span class="text-[10px] font-black px-1.5 py-0.5 rounded ${gBadge}">${p.grade}</span>
                 </div>
-                <p class="text-xs sm:text-sm text-[#d4d7e0] font-semibold mt-1 break-keep">${p.diagnosis}</p>
+                <div class="flex flex-wrap items-center gap-1 mt-0.5">
+                  ${roles.map(r => `<span class="text-[10px] font-black px-1.5 py-0.2 rounded bg-white/[0.07] text-emerald-300 border border-emerald-400/20">${r}</span>`).join("")}
+                </div>
+                ${multiTags.length > 0 ? `
+                  <div class="flex flex-wrap items-center gap-1 mt-1">
+                    ${multiTags.map(t => `<span class="text-[9px] font-black px-1 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">${t}</span>`).join("")}
+                  </div>
+                ` : ""}
               </div>
             </div>
-
-            <div class="flex items-center gap-5 sm:gap-6 ml-auto">
-              <div class="text-right">
-                <span class="text-xs text-[#8e929f] font-bold block">실제 과제 참여 점수</span>
-                <span class="text-2xl sm:text-3xl font-black ${p.contributionScore >= 65 ? "text-emerald-400" : p.contributionScore >= 40 ? "text-amber-300" : "text-rose-400"}">${p.contributionScore}점</span>
-              </div>
-              <div class="text-right">
-                <span class="text-xs text-[#8e929f] font-bold block">잠수·무임승차 위험도</span>
-                <span class="text-2xl sm:text-3xl font-black ${p.loafingScore >= 60 ? "text-rose-400" : p.loafingScore >= 35 ? "text-amber-300" : "text-emerald-400"}">${p.loafingScore}%</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-white/[0.06]">
-            <div class="space-y-1.5">
-              <div class="flex justify-between text-xs font-bold">
-                <span class="text-emerald-300">👍 실제 과제 참여 점수</span>
-                <span class="text-[#d4d7e0]">대화 비중 ${p.msgRatio}% · 먼저 의견 냄 ${p.starters}회 · 평균 ${p.avgLen}자</span>
-              </div>
-              <div class="w-full h-2.5 rounded-full bg-white/[0.06] overflow-hidden">
-                <div class="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-300" style="width: ${p.taskRatio}%"></div>
-              </div>
-            </div>
-
-            <div class="space-y-1.5">
-              <div class="flex justify-between text-xs font-bold">
-                <span class="text-rose-300">🚨 잠수·무임승차 위험도</span>
-                <span class="text-[#d4d7e0]">영혼 없는 '넵' 대답 ${p.tokenRatio}% · 평균 답장 ${p.replySpeed}분</span>
-              </div>
-              <div class="w-full h-2.5 rounded-full bg-white/[0.06] overflow-hidden">
-                <div class="h-full rounded-full bg-gradient-to-r from-rose-500 to-amber-400" style="width: ${p.loafingScore}%"></div>
-              </div>
-            </div>
-          </div>
-        </div>
+          </td>
+          <td class="py-3.5 px-3 text-center whitespace-nowrap">
+            <span class="text-base sm:text-lg font-black ${p.contributionScore >= 65 ? "text-emerald-400" : p.contributionScore >= 40 ? "text-amber-300" : "text-rose-400"}">${p.contributionScore}점</span>
+          </td>
+          <td class="py-3.5 px-3 text-center whitespace-nowrap">
+            <span class="text-base sm:text-lg font-black ${p.loafingScore >= 60 ? "text-rose-400" : p.loafingScore >= 35 ? "text-amber-300" : "text-emerald-400"}">${p.loafingScore}%</span>
+          </td>
+          <td class="py-3.5 px-3 text-center whitespace-nowrap">
+            <span class="px-2 py-0.5 rounded text-xs font-black ${dRate >= 70 ? "bg-emerald-500/20 text-emerald-300" : "bg-rose-500/20 text-rose-300"}">${dRate}%</span>
+            <span class="text-[10px] text-[#8e929f] block mt-0.5">약속 대비 이행</span>
+          </td>
+          <td class="py-3.5 px-3 text-center whitespace-nowrap">
+            <span class="px-2 py-0.5 rounded-md text-xs font-black bg-emerald-500/15 text-emerald-300 border border-emerald-400/30">${p.workShareCount || 0}회</span>
+            <span class="text-[10px] text-[#8e929f] block mt-0.5">파일${p.fileShares || 0}·링크${p.linkShares || 0}·사진${p.photoShares || 0}</span>
+          </td>
+          <td class="py-3.5 px-3 text-center whitespace-nowrap">
+            <span class="text-xs sm:text-sm font-black ${microCount >= 2 ? "text-rose-300" : "text-[#d4d7e0]"}">${microCount}건</span>
+            <span class="text-[10px] text-[#8e929f] block">단답 ${p.tokenRatio}%</span>
+          </td>
+          <td class="py-3.5 px-3 text-center whitespace-nowrap">
+            <span class="text-xs sm:text-sm font-black ${p.replySpeed >= 45 ? "text-rose-300" : "text-[#d4d7e0]"}">${p.replySpeed}분</span>
+            ${ignoredCount > 0 ? `<span class="text-[10px] text-rose-400 font-bold block">호명무시 ${ignoredCount}회</span>` : ""}
+          </td>
+        </tr>
       `;
     }).join("");
 
     subTabBodyHtml = `
       <div class="space-y-6">
-        <!-- 🏆 조별과제 기여도 시상식대 & 🐛 밑바닥 무임승차 버러지 서식지 -->
+        <!-- 🏆 조별과제 기여도 시상식대 & 무임승차 구간 -->
         <div class="rounded-[32px] p-6 sm:p-8 bg-gradient-to-b from-[#111922] via-[#0d1017] to-[#12090d] border border-emerald-400/30 space-y-6 overflow-hidden">
           <div class="text-center space-y-1.5">
-            <span class="px-3.5 py-1 rounded-full text-xs font-black bg-amber-300 text-[#060608]">🏆 조별과제 명예의 시상식대 vs 🐛 밑바닥 버러지</span>
+            <span class="px-3.5 py-1 rounded-full text-xs font-black bg-amber-300 text-[#060608]">${isVillainMildMode ? "🏆 조별과제 명예의 시상식대 vs 🌱 무임승차 주의보 구간" : "🏆 조별과제 명예의 시상식대 vs 🐛 밑바닥 버러지"}</span>
             <h4 class="text-2xl sm:text-3xl font-black text-[#f4f4f6] pt-1">
-              하드캐리 조원은 단상 위로, 무임승차 빌런은 시상식대 밑바닥으로!
+              ${isVillainMildMode ? "하드캐리 조원은 단상 위로, 소통이 필요한 조원은 분발 구간으로!" : "하드캐리 조원은 단상 위로, 무임승차 빌런은 시상식대 밑바닥으로!"}
             </h4>
-            <p class="text-xs sm:text-sm text-[#8e929f]">과제를 멱살 잡고 이끈 주역들과 단상 아래에서 눈치 보며 기어다니는 무임승차 인원을 분리했습니다.</p>
+            <p class="text-xs sm:text-sm text-[#8e929f]">과제를 멱살 잡고 이끈 주역들과 추가적인 참여·소통이 필요한 인원을 분리했습니다.</p>
           </div>
 
           <!-- 시상식대 (Podium) -->
@@ -2294,47 +3211,63 @@ function renderVillainModeUI(container) {
           <div class="rounded-3xl p-5 sm:p-6 bg-[#0b0608]/95 border-2 border-dashed border-rose-500/40 space-y-4">
             <div class="flex flex-wrap items-center justify-between gap-2">
               <div class="flex items-center gap-2">
-                <span class="px-3 py-1 rounded-full text-xs font-black bg-rose-600 text-white">🐛 시상식대 밑바닥 • 무임승차 버러지 서식지</span>
-                <span class="text-xs font-bold text-rose-300">단상 위에 올라갈 자격 없음!</span>
+                <span class="px-3 py-1 rounded-full text-xs font-black bg-rose-600 text-white">${isVillainMildMode ? "🌱 시상식대 아래 • 무임승차 주의보 구간" : "🐛 시상식대 밑바닥 • 무임승차 버러지 서식지"}</span>
+                <span class="text-xs font-bold text-rose-300">${isVillainMildMode ? "적극적인 과제 참여와 의견 공유가 필요합니다!" : "단상 위에 올라갈 자격 없음!"}</span>
               </div>
-              <span class="text-xs text-[#8e929f]">버튼을 누르면 참교육 샌드백 게임으로 직행합니다</span>
+              <span class="text-xs text-[#8e929f]">상단 4번 [🥊 빌런 참교육 샌드백 게임] 탭에서 참교육할 수 있습니다</span>
             </div>
-            <div class="space-y-3">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
               ${crawlersFloorHtml}
             </div>
           </div>
         </div>
 
-        <!-- 상세 수치 순위표 -->
-        <div class="rounded-[32px] p-6 sm:p-8 bg-[#0d0f16]/90 border border-white/[0.07] space-y-6">
+        <!-- 한눈에 비교하는 핵심 수치 성적표 -->
+        <div class="rounded-[32px] p-6 sm:p-8 bg-[#0d0f16]/90 border border-white/[0.07] space-y-5">
           <div class="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.07] pb-4">
             <div>
               <h4 class="text-xl sm:text-2xl font-black text-[#f4f4f6] flex items-center gap-2">
-                <i class="fa-solid fa-ranking-star text-emerald-400"></i> 조원별 상세 기여도 &amp; 빌런 지수 성적표
+                <i class="fa-solid fa-table-list text-emerald-400"></i> 조원별 핵심 기여도 &amp; ${isVillainMildMode ? "참여도" : "빌런 지수"} 수치 성적표
               </h4>
-              <p class="text-xs sm:text-sm text-[#8e929f] mt-1">대화 비중, 먼저 의견 낸 횟수, 영혼 없는 단답 비율을 모두 계산한 상세 순위입니다.</p>
+              <p class="text-xs sm:text-sm text-[#8e929f] mt-1">대화 문맥으로 파악된 각 조원의 <b>담당 역할, 약속 이행률, 6대 미세 회피 채증</b> 수치를 한눈에 비교합니다.</p>
             </div>
 
             <div class="flex items-center gap-1.5 p-1 rounded-2xl bg-[#141722] border border-white/[0.08]">
-              <button onclick="setVillainRankSort('villain')" class="px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
-                currentVillainSort === "villain"
-                  ? "bg-rose-500 text-white shadow"
-                  : "text-[#8e929f] hover:text-white"
-              }">
-                🚨 빌런 위험 순위부터 보기
-              </button>
               <button onclick="setVillainRankSort('contribution')" class="px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
                 currentVillainSort === "contribution"
                   ? "bg-emerald-400 text-[#060608] shadow"
                   : "text-[#8e929f] hover:text-white"
               }">
-                🏆 과제 기여도 높은 순 보기
+                🏆 기여 점수 높은 순
+              </button>
+              <button onclick="setVillainRankSort('villain')" class="px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                currentVillainSort === "villain"
+                  ? "bg-rose-500 text-white shadow"
+                  : "text-[#8e929f] hover:text-white"
+              }">
+                🚨 ${isVillainMildMode ? "주의 지수 높은 순" : "빌런 위험 순"}
               </button>
             </div>
           </div>
 
-          <div class="space-y-4">
-            ${leaderboardRowsHtml}
+          <div class="overflow-x-auto rounded-2xl border border-white/[0.08] bg-[#090b10]">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="border-b border-white/[0.08] bg-[#121622] text-[11px] font-black text-[#8e929f] uppercase">
+                  <th class="py-3 px-3 text-center whitespace-nowrap">순위</th>
+                  <th class="py-3 px-3 whitespace-nowrap">조원 · 담당 임무 (다중)</th>
+                  <th class="py-3 px-3 text-center whitespace-nowrap text-emerald-300">기여 점수</th>
+                  <th class="py-3 px-3 text-center whitespace-nowrap text-rose-300">${isVillainMildMode ? "주의 지수" : "빌런 위험도"}</th>
+                  <th class="py-3 px-3 text-center whitespace-nowrap text-sky-300">임무 이행률</th>
+                  <th class="py-3 px-3 text-center whitespace-nowrap">실무 자료 공유</th>
+                  <th class="py-3 px-3 text-center whitespace-nowrap text-amber-300">미세 회피·핑계</th>
+                  <th class="py-3 px-3 text-center whitespace-nowrap">평균 답장·호명</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${leaderboardRowsHtml}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -2360,18 +3293,22 @@ function renderVillainModeUI(container) {
                   <h3 class="text-3xl sm:text-4xl font-black text-[#f4f4f6]">${topHero.name}</h3>
                   <span class="px-3 py-1 rounded-lg text-sm font-black bg-emerald-400 text-[#060608]">추천 학점 ${topHero.grade}</span>
                 </div>
-                <p class="text-base sm:text-lg font-black text-emerald-300 mt-1">${topHero.roleBadge} • 과제 참여 ${topHero.contributionScore}점</p>
+                <p class="text-base sm:text-lg font-black text-emerald-300 mt-1">${getVillainRoleBadgeText(topHero)} • 과제 참여 ${topHero.contributionScore}점</p>
               </div>
             </div>
 
             <p class="text-base sm:text-lg font-bold text-[#f4f4f6] leading-relaxed pt-4 border-t border-white/[0.08] break-keep">
-              ${topHero.diagnosis}
+              ${getVillainDiagnosisText(topHero)}
             </p>
 
-            <div class="grid grid-cols-3 gap-3 pt-2 text-center">
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 text-center">
               <div class="p-3 rounded-2xl bg-white/[0.04] border border-white/[0.06]">
                 <span class="text-xs text-[#8e929f] block">전체 대화 비중</span>
                 <span class="text-xl font-black text-emerald-300">${topHero.msgRatio}%</span>
+              </div>
+              <div class="p-3 rounded-2xl bg-white/[0.04] border border-white/[0.06]">
+                <span class="text-xs text-[#8e929f] block">실무 자료 공유</span>
+                <span class="text-xl font-black text-emerald-300">${topHero.workShareCount || 0}회</span>
               </div>
               <div class="p-3 rounded-2xl bg-white/[0.04] border border-white/[0.06]">
                 <span class="text-xs text-[#8e929f] block">먼저 의견 제시</span>
@@ -2389,8 +3326,8 @@ function renderVillainModeUI(container) {
         <div class="lg:col-span-6 relative rounded-[32px] p-6 sm:p-8 bg-gradient-to-br from-rose-500/15 via-[#191016] to-[#090a0f] border border-rose-500/40 flex flex-col justify-between overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.6)]">
           <div class="space-y-5">
             <div class="flex items-center justify-between">
-              <span class="px-3.5 py-1 rounded-full text-xs font-black bg-rose-500 text-white">🐛 바닥 기는 무임승차 버러지 1위</span>
-              <span class="text-xs font-bold text-rose-300">시상식대 밑바닥 서식</span>
+              <span class="px-3.5 py-1 rounded-full text-xs font-black bg-rose-500 text-white">${isVillainMildMode ? "🌱 소통이 필요한 잠수러 1위" : "🐛 바닥 기는 무임승차 버러지 1위"}</span>
+              <span class="text-xs font-bold text-rose-300">${isVillainMildMode ? "무임승차 주의보 구간" : "시상식대 밑바닥 서식"}</span>
             </div>
 
             <div class="flex items-center gap-4 pt-1">
@@ -2402,18 +3339,22 @@ function renderVillainModeUI(container) {
                   <h3 class="text-3xl sm:text-4xl font-black text-[#f4f4f6]">${topVillain.name}</h3>
                   <span class="px-3 py-1 rounded-lg text-sm font-black bg-rose-500 text-white">추천 학점 ${topVillain.grade}</span>
                 </div>
-                <p class="text-base sm:text-lg font-black text-rose-400 mt-1">${topVillain.roleBadge} • 빌런 위험도 ${topVillain.loafingScore}%</p>
+                <p class="text-base sm:text-lg font-black text-rose-400 mt-1">${getVillainRoleBadgeText(topVillain)} • ${isVillainMildMode ? "주의 지수" : "빌런 위험도"} ${topVillain.loafingScore}%</p>
               </div>
             </div>
 
             <p class="text-base sm:text-lg font-bold text-[#f4f4f6] leading-relaxed pt-4 border-t border-white/[0.08] break-keep">
-              ${topVillain.diagnosis}
+              ${getVillainDiagnosisText(topVillain)}
             </p>
 
-            <div class="grid grid-cols-3 gap-3 pt-2 text-center">
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 text-center">
               <div class="p-3 rounded-2xl bg-white/[0.04] border border-white/[0.06]">
                 <span class="text-xs text-[#8e929f] block">전체 대화 비중</span>
                 <span class="text-xl font-black text-rose-300">${topVillain.msgRatio}%</span>
+              </div>
+              <div class="p-3 rounded-2xl bg-white/[0.04] border border-white/[0.06]">
+                <span class="text-xs text-[#8e929f] block">실무 자료 공유</span>
+                <span class="text-xl font-black text-rose-300">${topVillain.workShareCount || 0}회</span>
               </div>
               <div class="p-3 rounded-2xl bg-white/[0.04] border border-white/[0.06]">
                 <span class="text-xs text-[#8e929f] block">영혼 없는 대답</span>
@@ -2435,7 +3376,7 @@ function renderVillainModeUI(container) {
       : [
           {
             title: `${topHero.name}님의 하드캐리 vs ${topVillain.name}님의 무임승차 대화`,
-            badge: "실제 대화 증거",
+            badge: "실제 대화 증거 #1",
             verdict: `${topHero.name}님이 먼저 의견을 내고 일정을 조율할 때, ${topVillain.name}님은 평균 ${topVillain.replySpeed}분 뒤 짧은 대답만 반복했습니다.`,
             messages: [
               {
@@ -2447,8 +3388,27 @@ function renderVillainModeUI(container) {
               {
                 sender: topVillain.name,
                 time: "오후 10:15",
-                roleTag: "🐛 무임승차 버러지",
+                roleTag: isVillainMildMode ? "🌱 소통이 필요한 잠수러" : "🐛 무임승차 버러지",
                 text: (currentData.members.find(m => m.name === topVillain.name)?.quotes?.[0]) || "아 넵!! 좋습니다 ㅎㅎ 조장님 의견대로 하시죠!"
+              }
+            ]
+          },
+          {
+            title: `${topVillain.name}님의 마감 직전 회피 vs 팀 피드백 요청 대화`,
+            badge: "실제 대화 증거 #2",
+            verdict: `자료 마감 직전 확인 요청에 대해 구체적인 작업물 링크 없이 모호한 답변으로 책임을 미루는 양상이 포착되었습니다.`,
+            messages: [
+              {
+                sender: topHero.name,
+                time: "오후 11:30",
+                roleTag: "👑 하드캐리 총대장",
+                text: "혹시 맡으신 파트 자료 어디까지 작성되셨을까요? 파일 첨부 부탁드립니다!"
+              },
+              {
+                sender: topVillain.name,
+                time: "다음날 오전 1:20",
+                roleTag: isVillainMildMode ? "🌱 소통이 필요한 잠수러" : "🐛 무임승차 버러지",
+                text: "지금 거의 다 해가는데 밖이라 집 가서 바로 올릴게요 ㅠㅠ 죄송합니다!"
               }
             ]
           }
@@ -2458,9 +3418,9 @@ function renderVillainModeUI(container) {
       LEADER: "👑 하드캐리 총대장",
       ACE: "⚡ 칼답 실무 에이스",
       SUPPORT: "🤝 든든 조원",
-      NENE: "🦜 영혼 없는 네무새",
-      VILLAIN: "🐛 무임승차 빌런",
-      GHOST: "👻 연락두절 잠수충"
+      NENE: isVillainMildMode ? "🦜 영혼 없는 네무새 요정" : "🦜 영혼 없는 네무새",
+      VILLAIN: isVillainMildMode ? "🌱 소통이 필요한 잠수러" : "🐛 무임승차 빌런",
+      GHOST: isVillainMildMode ? "👻 응답 대기 잠수러" : "👻 연락두절 잠수충"
     };
 
     const evidenceCardsHtml = evidenceLogs.map((ev) => {
@@ -2470,7 +3430,15 @@ function renderVillainModeUI(container) {
 
       const msgRowsHtml = msgs.map(m => {
         const speakerName = m.sender || m.speaker || topVillain.name;
-        const resolvedRoleTag = m.roleTag || roleCodeMap[m.role] || "";
+        let resolvedRoleTag = m.roleTag || roleCodeMap[m.role] || "";
+        if (isVillainMildMode && resolvedRoleTag) {
+          resolvedRoleTag = resolvedRoleTag
+            .replace(/네무새 버러지/g, "네무새 요정")
+            .replace(/무임승차 버러지/g, "소통이 필요한 잠수러")
+            .replace(/무임승차 빌런/g, "소통이 필요한 잠수러")
+            .replace(/버러지/g, "잠수러")
+            .replace(/빌런/g, "잠수러");
+        }
         const isVillainMsg = resolvedRoleTag.includes("무임승차") || resolvedRoleTag.includes("네무새") || resolvedRoleTag.includes("빌런") || resolvedRoleTag.includes("잠수") || m.role === "VILLAIN" || m.role === "NENE" || speakerName === topVillain.name;
         return `
           <div class="p-4 rounded-2xl ${isVillainMsg ? "bg-rose-500/[0.08] border border-rose-500/30" : "bg-emerald-500/[0.07] border border-emerald-400/25"} space-y-1.5">
@@ -2489,22 +3457,65 @@ function renderVillainModeUI(container) {
       const verdictNote = ev.verdict || ev.academicNote || ev.analysis || "";
 
       return `
-        <div class="p-5 sm:p-6 rounded-3xl bg-[#090a0f] border border-white/[0.08] space-y-4">
-          <div class="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.06] pb-3">
-            <h5 class="text-base sm:text-lg font-black text-[#f4f4f6]">${ev.title || ev.role || "단톡방 실제 대화 증거"}</h5>
-            <span class="px-3 py-1 rounded-full text-xs font-bold bg-rose-500/15 text-rose-300 border border-rose-500/30">${ev.badge || ev.date || "증거 채증 완료"}</span>
-          </div>
-          <div class="space-y-3">
-            ${msgRowsHtml}
+        <div class="p-5 sm:p-6 rounded-3xl bg-[#090a0f] border border-white/[0.08] space-y-4 flex flex-col justify-between">
+          <div class="space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.06] pb-3">
+              <h5 class="text-base sm:text-lg font-black text-[#f4f4f6]">${ev.title || ev.role || "단톡방 실제 대화 증거"}</h5>
+              <span class="px-3 py-1 rounded-full text-xs font-bold bg-rose-500/15 text-rose-300 border border-rose-500/30 shrink-0">${ev.badge || ev.date || "증거 채증 완료"}</span>
+            </div>
+            <div class="space-y-3">
+              ${msgRowsHtml}
+            </div>
           </div>
           ${verdictNote ? `
-            <p class="text-xs sm:text-sm font-bold text-amber-300 bg-white/[0.03] px-4 py-3 rounded-xl border border-white/[0.06] break-keep">
+            <p class="text-xs sm:text-sm font-bold text-amber-300 bg-white/[0.03] px-4 py-3 rounded-xl border border-white/[0.06] break-keep mt-2">
               📌 ${verdictNote}
             </p>
           ` : ""}
         </div>
       `;
     }).join("");
+
+    // 탭 3 하단: 아르곤 정밀 채증 - 놓치지 않은 작은 티(Micro-Signals) 섹션 빌드
+    const microEvidenceList = [];
+    profiles.forEach(p => {
+      if (Array.isArray(p.microEvidences) && p.microEvidences.length > 0) {
+        p.microEvidences.forEach(me => {
+          microEvidenceList.push({
+            name: p.name,
+            grade: p.grade,
+            type: me.type,
+            badge: me.badge,
+            quote: me.quote,
+            time: me.time
+          });
+        });
+      }
+    });
+
+    const microEvidenceRowsHtml = microEvidenceList.length > 0 ? microEvidenceList.map(me => `
+      <div class="p-4 rounded-2xl bg-[#140c11] border border-rose-500/25 flex flex-col justify-between gap-3">
+        <div class="space-y-1 min-w-0">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <span class="text-sm font-black text-[#f4f4f6]">${me.name}</span>
+              <span class="px-2 py-0.5 rounded text-[11px] font-black bg-rose-500 text-white">${me.badge}</span>
+            </div>
+            <span class="text-xs text-[#8e929f]">${me.time}</span>
+          </div>
+          <p class="text-xs sm:text-sm font-semibold text-rose-200 mt-1 break-keep">"${me.quote}"</p>
+        </div>
+        <div class="flex justify-end pt-1">
+          <span class="text-[11px] font-bold text-amber-300 bg-white/[0.04] px-2.5 py-1 rounded-lg border border-white/[0.08]">
+            🔍 미세 회피 패턴 감지
+          </span>
+        </div>
+      </div>
+    `).join("") : `
+      <div class="col-span-full p-6 rounded-2xl bg-[#140c11]/60 border border-white/[0.06] text-center text-xs text-[#8e929f]">
+        대화 내에서 심각한 미세 회피 신호(핑계·책임전가·숟가락얹기)가 채증되지 않았습니다. 비교적 양호한 소통 환경입니다.
+      </div>
+    `;
 
     subTabBodyHtml = `
       <div class="rounded-[32px] p-6 sm:p-8 bg-[#0d0f16]/90 border border-white/[0.07] space-y-6">
@@ -2515,8 +3526,27 @@ function renderVillainModeUI(container) {
           <p class="text-xs sm:text-sm text-[#8e929f] mt-1">과제를 이끈 조원의 발언과 무임승차·영혼 없는 대답 패턴을 실제 대화로 비교했습니다.</p>
         </div>
 
-        <div class="space-y-5">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
           ${evidenceCardsHtml}
+        </div>
+
+        <!-- 🔍 아르곤 정밀 채증: 놓치지 않은 작은 티 (Micro-Signals) -->
+        <div class="pt-6 border-t border-white/[0.08] space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h5 class="text-lg font-black text-[#f4f4f6] flex items-center gap-2">
+                <i class="fa-solid fa-microscope text-amber-300"></i> 아르곤 정밀 채증: 놓치지 않은 작은 티 (Micro-Signals)
+              </h5>
+              <p class="text-xs text-[#8e929f] mt-0.5">대놓고 안 하겠다고 말하지 않고 교묘하게 빠져나가려던 미세 발언(쿠션어, 핑계, 가짜 진행, 뒷북 질문)을 전수 포착했습니다.</p>
+            </div>
+            <span class="px-3 py-1 rounded-full text-xs font-bold bg-amber-400/20 text-amber-300 border border-amber-400/35">
+              총 ${microEvidenceList.length}건 적발
+            </span>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 items-stretch">
+            ${microEvidenceRowsHtml}
+          </div>
         </div>
       </div>
     `;
@@ -2526,6 +3556,7 @@ function renderVillainModeUI(container) {
     const tChar = getCharData(targetProfile.cti);
     const memberObj = (currentData.members || []).find(m => m.name === targetProfile.name);
     const realQuote = (memberObj && memberObj.quotes && memberObj.quotes[0]) || "아 넵!! 저는 다 좋습니다 ㅎㅎ";
+    const activeWeapon = VILLAIN_WEAPONS[villainGameWeaponIdx] || VILLAIN_WEAPONS[0];
 
     const initialSpeech = villainGameHp > 70
       ? `"${realQuote}" (아직 정신 못 차리고 뻔뻔하게 변명 중!)`
@@ -2533,7 +3564,7 @@ function renderVillainModeUI(container) {
       ? `"잠깐만요!! 지금 노트북 켜고 있어요!! 진짜 오늘 밤까지 올릴게요 ㅠㅠ"`
       : villainGameHp > 0
       ? `"살려주세요!! PPT 발표자 명단에서 제 이름만은 빼지 말아 주세요 ㅠㅠ 제발!!"`
-      : `💀 [참교육 완료] "제가 무임승차 버러지였습니다... 지금 당장 결론 장표 30페이지 밤새서 만들겠습니다!!"`;
+      : `💀 [참교육 완료] "제가 잘못했습니다... 지금 당장 결론 장표 30페이지 밤새서 만들겠습니다!!"`;
 
     subTabBodyHtml = `
       <div class="rounded-[32px] p-6 sm:p-8 bg-gradient-to-br from-[#1a0d14] via-[#0e1018] to-[#08090d] border-2 border-rose-500/40 space-y-6 shadow-[0_25px_60px_rgba(0,0,0,0.75)]">
@@ -2544,12 +3575,19 @@ function renderVillainModeUI(container) {
             <h4 class="text-2xl sm:text-3xl font-black text-[#f4f4f6] mt-2">
               무임승차 빌런 참교육 샌드백!
             </h4>
-            <p class="text-xs sm:text-sm text-[#8e929f] mt-1">아래에서 참교육할 무기를 고르고 캐릭터를 마구 클릭(연타)해 팀플 스트레스를 날려버리세요!</p>
+            <p class="text-xs sm:text-sm text-[#8e929f] mt-1">아래에서 참교육할 무기를 고르고 전신 래그돌 캐릭터를 마구 클릭(연타)해 팀플 스트레스를 날려버리세요!</p>
           </div>
 
-          <button onclick="resetVillainGame()" class="px-4 py-2.5 rounded-2xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.12] text-xs font-black text-[#f4f4f6] flex items-center gap-2 cursor-pointer transition">
-            <i class="fa-solid fa-rotate-right text-emerald-400"></i> 풀피로 부활시켜서 다시 패기
-          </button>
+          <div class="flex flex-wrap items-center gap-2">
+            <button id="villainSoundToggleBtn" onclick="toggleVillainGameSound(event)" class="px-3.5 py-2.5 rounded-2xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.12] text-xs font-black text-[#f4f4f6] flex items-center gap-1.5 cursor-pointer transition">
+              ${villainGameSoundEnabled
+                ? '<i class="fa-solid fa-volume-high text-amber-300"></i> <span>타격음 ON</span>'
+                : '<i class="fa-solid fa-volume-xmark text-[#8e929f]"></i> <span>타격음 OFF</span>'}
+            </button>
+            <button onclick="resetVillainGame()" class="px-4 py-2.5 rounded-2xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.12] text-xs font-black text-[#f4f4f6] flex items-center gap-2 cursor-pointer transition">
+              <i class="fa-solid fa-rotate-right text-emerald-400"></i> 🔄 풀피로 부활시켜서 다시 패기
+            </button>
+          </div>
         </div>
 
         <!-- 샌드백 타겟 조원 변경 바 -->
@@ -2590,18 +3628,85 @@ function renderVillainModeUI(container) {
           </div>
         </div>
 
-        <!-- 중앙 샌드백 아레나 (클릭 시 타격!) -->
-        <div onclick="hitVillainTarget(event)" class="relative rounded-[32px] p-8 sm:p-10 bg-gradient-to-b from-[#161019] to-[#09060a] border-2 border-dashed border-rose-500/35 hover:border-rose-400/70 flex flex-col items-center justify-center text-center select-none cursor-crosshair overflow-hidden min-h-[340px] group">
+        <!-- 중앙 샌드백 아레나 (Hit the Boss 스타일 전신 관절형 래그돌 • 마우스 커서 무기화 & 클릭 시 발사 타격!) -->
+        <div id="villainArenaBox" onclick="hitVillainTarget(event)" onmousemove="moveVillainWeaponCursor(event)" onmouseleave="hideVillainWeaponCursor()" style="cursor: ${getVillainWeaponCursorUrl(activeWeapon.icon)};" class="relative rounded-[32px] p-6 sm:p-10 bg-gradient-to-b from-[#161019] to-[#09060a] border-2 border-dashed border-rose-500/35 hover:border-rose-400/70 flex flex-col items-center justify-center text-center select-none overflow-hidden min-h-[450px] group">
+          <!-- 마우스 커서를 따라다니며 발사 준비하는 무기 커서 팔로워 -->
+          <div id="villainFloatingWeaponCursor" class="pointer-events-none absolute z-50 opacity-0 transition-opacity duration-100" style="left:50%;top:50%;transform:translate(10px, 10px);">
+            <div id="villainFloatingWeaponCursorInner" class="text-3xl sm:text-4xl drop-shadow-[0_6px_14px_rgba(0,0,0,0.95)] transition-transform duration-100" style="transform: rotate(-12deg);">${activeWeapon.icon}</div>
+          </div>
+
           <!-- 실시간 말풍선 -->
-          <div id="villainSpeechBubble" class="relative z-10 max-w-xl mb-6 px-5 py-3 rounded-2xl bg-[#1f131b] border border-rose-400/40 text-xs sm:text-sm font-bold text-rose-100 shadow-lg break-keep">
+          <div id="villainSpeechBubble" class="relative z-20 max-w-xl mb-5 px-5 py-3 rounded-2xl bg-[#1f131b] border border-rose-400/40 text-xs sm:text-sm font-bold text-rose-100 shadow-lg break-keep transition-transform duration-150">
             ${initialSpeech}
           </div>
 
-          <!-- 샌드백 캐릭터 본체 -->
-          <div id="villainSandbagBox" class="relative z-10 w-36 h-36 sm:w-44 sm:h-44 rounded-full bg-[#1c1116] p-4 border-4 border-rose-500 shadow-[0_0_45px_rgba(244,63,94,0.35)] flex items-center justify-center transition-transform duration-150 group-active:scale-90" style="${villainGameHp <= 0 ? "transform: scale(1.08, 0.58) rotate(-14deg) translateY(18px);" : ""}">
-            <img src="${tChar.img}" alt="${targetProfile.name}" class="w-full h-full object-contain pointer-events-none">
-            <!-- 누적 반창고/F학점 도장 레이어 -->
-            <div id="villainStampsLayer" class="absolute inset-0 pointer-events-none">
+          <!-- Hit the Boss 스타일 전신 사람 모양 관절형 래그돌 (머리 + 얼굴 대형 이름 + 과잠/정장 몸통 + 양팔 + 양다리) -->
+          <div id="villainSandbagBox" class="relative z-10 flex flex-col items-center justify-center pt-2 pb-4 px-8 transition-transform duration-150" style="transform-origin: center bottom; ${villainGameHp <= 0 ? "transform: translateY(26px) rotate(-78deg) scale(1.06, 0.78); filter: grayscale(0.55) contrast(1.2);" : ""}">
+            <!-- 1. 머리 (CTI 아바타 헤드 + 얼굴 정면 대형 이름표 + 실시간 표정/데미지 오버레이) -->
+            <div id="villainRagdollHead" class="relative z-20 w-28 h-28 sm:w-32 sm:h-32 rounded-full bg-[#1c1116] p-2.5 border-4 border-rose-500 shadow-[0_10px_30px_rgba(244,63,94,0.45)] flex items-center justify-center transition-transform duration-150" style="transform-origin: bottom center; ${villainGameHp <= 0 ? "transform: rotate(-32deg) translateY(8px);" : ""}">
+              <img src="${tChar.img}" alt="${targetProfile.name}" class="w-full h-full object-contain pointer-events-none opacity-85">
+              <!-- 얼굴 한가운데에 큼직하고 선명하게 박힌 타겟 이름 배지 -->
+              <div class="pointer-events-none absolute inset-x-1 top-1/2 -translate-y-1/2 z-30 flex items-center justify-center">
+                <span class="px-2.5 py-1 rounded-xl bg-black/80 border-2 border-amber-300 text-lg sm:text-2xl font-black text-white tracking-tight shadow-[0_4px_16px_rgba(0,0,0,0.95)] break-keep leading-none">
+                  ${targetProfile.name}
+                </span>
+              </div>
+              <div id="villainDamageOverlay" class="absolute inset-0 pointer-events-none z-20">
+                ${getVillainDamageOverlayHtml(villainGameHp)}
+              </div>
+            </div>
+
+            <!-- 목 연결부 -->
+            <div class="w-5 h-3 -mt-1 bg-[#2b1d24] border-x-2 border-rose-500/40 z-10"></div>
+
+            <!-- 2. 상체 (양팔 관절 + 과잠/정장 토르소 몸통) -->
+            <div class="relative flex items-start justify-center -mt-0.5 z-10">
+              <!-- 왼팔 (관절형 래그돌 파츠) -->
+              <div id="villainArmLeft" class="w-6 sm:w-7 h-24 sm:h-28 -mr-2 mt-1 rounded-full bg-gradient-to-b from-rose-500/90 to-[#251621] border-2 border-rose-300/60 shadow-md flex flex-col items-center justify-end pb-1.5 transition-transform duration-150 origin-top" style="transform: ${villainGameHp <= 0 ? "rotate(128deg)" : "rotate(16deg)"};">
+                <div class="w-5 h-5 rounded-full bg-[#fde0c8] border border-rose-400/50 shadow-inner flex items-center justify-center text-[10px]">✊</div>
+              </div>
+
+              <!-- 몸통 (대학 과잠/팀플 정장 스타일 + 이름표 & 학점 배지) -->
+              <div class="relative w-28 sm:w-32 h-28 sm:h-32 rounded-[26px] bg-gradient-to-b from-[#281524] via-[#1b121c] to-[#110c14] border-2 border-rose-500/70 shadow-[0_12px_30px_rgba(0,0,0,0.65)] flex flex-col items-center justify-between p-2.5 overflow-hidden">
+                <!-- 과잠 V넥 칼라 장식 -->
+                <div class="w-12 h-3 rounded-b-full border-b-2 border-x-2 border-amber-300/60 bg-black/30 -mt-2.5"></div>
+
+                <!-- 가슴 명찰 & 추천 학점 -->
+                <div class="w-full px-2 py-1.5 rounded-xl bg-black/55 border border-white/15 text-center space-y-0.5">
+                  <div class="text-[9px] font-extrabold text-rose-300 tracking-wider uppercase">TEAM PROJECT TARGET</div>
+                  <div class="text-xs sm:text-sm font-black text-white truncate">${targetProfile.name}</div>
+                </div>
+
+                <!-- 하단 학점 직인 & CTI 뱃지 -->
+                <div class="flex items-center justify-between w-full px-1">
+                  <span class="px-2 py-0.5 rounded-md text-[10px] font-black bg-rose-500/25 text-rose-200 border border-rose-400/40">${targetProfile.cti}</span>
+                  <span class="px-2 py-0.5 rounded-md text-[10px] font-black bg-rose-600 text-white shadow">학점 ${targetProfile.grade}</span>
+                </div>
+              </div>
+
+              <!-- 오른팔 (관절형 래그돌 파츠) -->
+              <div id="villainArmRight" class="w-6 sm:w-7 h-24 sm:h-28 -ml-2 mt-1 rounded-full bg-gradient-to-b from-rose-500/90 to-[#251621] border-2 border-rose-300/60 shadow-md flex flex-col items-center justify-end pb-1.5 transition-transform duration-150 origin-top" style="transform: ${villainGameHp <= 0 ? "rotate(-128deg)" : "rotate(-16deg)"};">
+                <div class="w-5 h-5 rounded-full bg-[#fde0c8] border border-rose-400/50 shadow-inner flex items-center justify-center text-[10px]">🤚</div>
+              </div>
+            </div>
+
+            <!-- 3. 하체 (양다리 관절형 래그돌 파츠 + 신발) -->
+            <div class="flex items-start justify-center gap-3 -mt-2 z-0">
+              <!-- 왼다리 -->
+              <div id="villainLegLeft" class="w-7 sm:w-8 h-20 sm:h-24 rounded-b-2xl rounded-t-lg bg-gradient-to-b from-[#1e2436] to-[#0f131f] border-2 border-white/20 shadow-md flex flex-col items-center justify-end transition-transform duration-150 origin-top" style="transform: ${villainGameHp <= 0 ? "rotate(42deg)" : "rotate(4deg)"};">
+                <div class="w-9 sm:w-10 h-4 -mb-1 rounded-full bg-rose-500 border border-white/40 shadow text-[9px] font-black text-white flex items-center justify-center">👟</div>
+              </div>
+              <!-- 오른다리 -->
+              <div id="villainLegRight" class="w-7 sm:w-8 h-20 sm:h-24 rounded-b-2xl rounded-t-lg bg-gradient-to-b from-[#1e2436] to-[#0f131f] border-2 border-white/20 shadow-md flex flex-col items-center justify-end transition-transform duration-150 origin-top" style="transform: ${villainGameHp <= 0 ? "rotate(-48deg)" : "rotate(-4deg)"};">
+                <div class="w-9 sm:w-10 h-4 -mb-1 rounded-full bg-rose-500 border border-white/40 shadow text-[9px] font-black text-white flex items-center justify-center">👟</div>
+              </div>
+            </div>
+
+            <!-- 바닥 그림자 -->
+            <div class="w-36 h-4 mt-1 rounded-full bg-black/60 blur-sm pointer-events-none"></div>
+
+            <!-- 누적 반창고/F학점 도장 레이어 (전신 위에 찍힘) -->
+            <div id="villainStampsLayer" class="absolute inset-0 pointer-events-none z-30">
               ${villainGameStamps.map(s => `
                 <span class="pointer-events-none absolute px-1.5 py-0.5 rounded text-xs sm:text-sm font-black ${
                   s.label.includes("[") ? "bg-rose-600 text-white border border-white/60 shadow-lg" : "text-lg sm:text-xl"
@@ -2611,12 +3716,12 @@ function renderVillainModeUI(container) {
           </div>
 
           <!-- K.O. 처형 완료 도장 배너 -->
-          <div id="villainKoBanner" class="${villainGameHp <= 0 ? "" : "hidden"} mt-5 z-20 px-6 py-2 rounded-2xl bg-rose-600 text-white font-black text-sm sm:text-lg border-2 border-amber-300 shadow-[0_0_30px_rgba(244,63,94,0.7)]">
-            🔨 [참교육 완료 • 교수님 직권 F학점 &amp; 발표자 명단 제외 처형!]
+          <div id="villainKoBanner" class="${villainGameHp <= 0 ? "" : "hidden"} mt-3 z-20 px-6 py-2 rounded-2xl bg-rose-600 text-white font-black text-sm sm:text-lg border-2 border-amber-300 shadow-[0_0_30px_rgba(244,63,94,0.7)]">
+            💀 [참교육 완료 • 교수님 직권 F학점 &amp; 발표자 명단 제외 처형!]
           </div>
 
-          <span class="mt-4 text-xs font-extrabold text-rose-300/90 group-hover:text-amber-300 transition">
-            👆 캐릭터를 클릭(터치)해서 참교육 타격을 날리세요! (현재 무기: ${VILLAIN_WEAPONS[villainGameWeaponIdx].icon} ${VILLAIN_WEAPONS[villainGameWeaponIdx].name})
+          <span id="villainCurrentWeaponHint" class="mt-3 text-xs font-extrabold text-rose-300/90 group-hover:text-amber-300 transition">
+            👆 전신 캐릭터를 클릭(터치)해서 참교육 타격을 날리세요! (현재 무기: ${activeWeapon.icon} ${activeWeapon.name})
           </span>
         </div>
 
@@ -2654,6 +3759,7 @@ function renderVillainModeUI(container) {
 
   container.innerHTML = `
     <div class="space-y-6">
+      ${spiceToggleBarHtml}
       ${topSummaryStripHtml}
       ${subTabNavHtml}
       ${subTabBodyHtml}
@@ -2817,6 +3923,88 @@ function renderCurrentDeckCard() {
     <span class="px-3 py-1 rounded-full bg-[#12141a] border border-white/[0.08] text-[#f4f4f6] text-[11px] whitespace-nowrap">#${s}</span>
   `).join("");
 
+  // Phase 3-3: CTI 4대 지표(E/I, L/S, F/T, A/R) 양극단 산출 비율 계산
+  const ctiCode = String(m.cti || "ELFA").toUpperCase();
+  const calcAxisPct = (isLeftDominant, rawVal) => {
+    const raw = Number(rawVal) || 50;
+    if (isLeftDominant) {
+      return Math.min(94, Math.max(54, Math.round(52 + Math.abs(raw - 35) * 0.58)));
+    }
+    return Math.max(8, Math.min(46, Math.round(46 - Math.abs(65 - raw) * 0.52)));
+  };
+  const ePct = calcAxisPct(ctiCode[0] === "E", m.radar?.initiative);
+  const iPct = 100 - ePct;
+  const lPct = calcAxisPct(ctiCode[1] === "L", m.radar?.length);
+  const sPct = 100 - lPct;
+  const fPct = calcAxisPct(ctiCode[2] === "F", m.radar?.emotion);
+  const tPct = 100 - fPct;
+  const aPct = calcAxisPct(ctiCode[3] === "A", m.radar?.assertiveness);
+  const rPct = 100 - aPct;
+
+  const ctiAxes = [
+    {
+      title: "발화 에너지",
+      leftCode: "E", leftLabel: "외향·수다", leftPct: ePct,
+      rightCode: "I", rightLabel: "내향·경청", rightPct: iPct,
+      activeLeft: ctiCode[0] === "E",
+      barColor: "from-amber-400 to-orange-500",
+      textColor: "text-amber-400"
+    },
+    {
+      title: "문장 호흡",
+      leftCode: "L", leftLabel: "장문·서사", leftPct: lPct,
+      rightCode: "S", rightLabel: "단문·속사포", rightPct: sPct,
+      activeLeft: ctiCode[1] === "L",
+      barColor: "from-sky-400 to-cyan-500",
+      textColor: "text-sky-400"
+    },
+    {
+      title: "공감·리액션",
+      leftCode: "F", leftLabel: "감성·공감", leftPct: fPct,
+      rightCode: "T", rightLabel: "팩트·용건", rightPct: tPct,
+      activeLeft: ctiCode[2] === "F",
+      barColor: "from-emerald-400 to-teal-500",
+      textColor: "text-emerald-400"
+    },
+    {
+      title: "대화 주도성",
+      leftCode: "A", leftLabel: "직진·주도", leftPct: aPct,
+      rightCode: "R", rightLabel: "수용·호응", rightPct: rPct,
+      activeLeft: ctiCode[3] === "A",
+      barColor: "from-purple-400 to-pink-500",
+      textColor: "text-purple-400"
+    }
+  ];
+
+  const ctiAxisBarsHtml = `
+    <div class="theme-sub-card p-3.5 sm:p-4 rounded-2xl space-y-2.5">
+      <div class="flex items-center justify-between">
+        <span class="text-xs font-black text-[#f4f4f6] flex items-center gap-1.5">
+          <i class="fa-solid fa-dna text-[#f5b73d]"></i> CTI 4대 지표 산출 비율 (${ctiCode} 도출 근거)
+        </span>
+        <span class="text-[11px] font-semibold text-[#8e929f]">양극단 백분율 비교</span>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        ${ctiAxes.map(ax => `
+          <div class="p-2.5 rounded-xl bg-[#0b0d13]/70 border border-white/[0.06] space-y-1.5">
+            <div class="flex items-center justify-between text-[11px] font-bold">
+              <span class="${ax.activeLeft ? ax.textColor + ' font-black' : 'text-[#8e929f]'}">
+                ${ax.leftCode} (${ax.leftLabel}) ${ax.leftPct}%
+              </span>
+              <span class="text-[10px] text-[#8e929f] font-semibold">${ax.leftCode} ${ax.leftPct}% ↔ ${ax.rightCode} ${ax.rightPct}%</span>
+              <span class="${!ax.activeLeft ? ax.textColor + ' font-black' : 'text-[#8e929f]'}">
+                ${ax.rightCode} (${ax.rightLabel}) ${ax.rightPct}%
+              </span>
+            </div>
+            <div class="w-full h-2 rounded-full bg-white/[0.08] overflow-hidden flex">
+              <div class="h-full bg-gradient-to-r ${ax.barColor} transition-all duration-500" style="width: ${ax.leftPct}%"></div>
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
+
   container.innerHTML = `
     <div class="theme-card tilt-card-3d ${isMe ? 'ring-2 ring-[#f5b73d]' : ''} rounded-[36px] p-6 sm:p-7 space-y-6 relative overflow-hidden transition-all duration-300">
       <div class="tilt-glare"></div>
@@ -2847,6 +4035,9 @@ function renderCurrentDeckCard() {
           대화 지분 ${m.msgRatio}%
         </span>
       </div>
+
+      <!-- Phase 3-3: CTI 4대 지표(E/I, L/S, F/T, A/R) 양극단 백분율 바 -->
+      ${ctiAxisBarsHtml}
 
       <!-- 레이더 차트 및 5대 지표 수치 진단 섹션 -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-center theme-sub-card p-4 sm:p-5 rounded-2xl">
@@ -2918,7 +4109,7 @@ function renderCurrentDeckCard() {
   setTimeout(renderActiveRadarChart, 30);
 }
 
-// 현재 활성화된 1장의 카드에 레이더 차트 렌더링
+// 현재 활성화된 1장의 카드에 레이더 차트 렌더링 (Phase 2-1 & 2-2: 라이트/다크 모드별 명암비 분기)
 function renderActiveRadarChart() {
   if (!currentData || !currentData.members) return;
   const m = currentData.members[currentCharDeckIndex];
@@ -2930,6 +4121,14 @@ function renderActiveRadarChart() {
   if (radarCharts['active']) {
     radarCharts['active'].destroy();
   }
+
+  const isLight = document.body.classList.contains("light-mode");
+  const polyFill = isLight ? "rgba(217, 119, 6, 0.34)" : "rgba(245, 183, 61, 0.30)";
+  const polyStroke = isLight ? "#d97706" : "#f5b73d";
+  const pointBg = isLight ? "#b45309" : "#f5b73d";
+  const pointBorder = isLight ? "#ffffff" : "#f6f8fa";
+  const gridColor = isLight ? "rgba(15, 23, 42, 0.14)" : "rgba(255, 255, 255, 0.12)";
+  const labelColor = isLight ? "#1e293b" : "#d4d8e2";
 
   const ctx = canvas.getContext("2d");
   radarCharts['active'] = new Chart(ctx, {
@@ -2945,11 +4144,11 @@ function renderActiveRadarChart() {
           Number(m.radar.assertiveness) || 0,
           Number(m.radar.humor) || 0
         ],
-        backgroundColor: "rgba(245, 183, 61, 0.28)",
-        borderColor: "#f5b73d",
-        borderWidth: 2,
-        pointBackgroundColor: "#f5b73d",
-        pointBorderColor: "#f6f8fa",
+        backgroundColor: polyFill,
+        borderColor: polyStroke,
+        borderWidth: isLight ? 3 : 2.5,
+        pointBackgroundColor: pointBg,
+        pointBorderColor: pointBorder,
         pointBorderWidth: 1.5,
         pointRadius: 4,
         pointHoverRadius: 6
@@ -2971,10 +4170,10 @@ function renderActiveRadarChart() {
           min: 0,
           max: 100,
           ticks: { display: false, stepSize: 20 },
-          grid: { color: "rgba(255, 255, 255, 0.08)" },
-          angleLines: { color: "rgba(255, 255, 255, 0.08)" },
+          grid: { color: gridColor },
+          angleLines: { color: gridColor },
           pointLabels: {
-            color: "#848c96",
+            color: labelColor,
             font: { size: 11, family: "Pretendard Variable", weight: "bold" }
           }
         }
@@ -3223,6 +4422,10 @@ function renderActivityCharts() {
   const act = currentData.activity;
   if (!act) return;
 
+  const isLight = document.body.classList.contains("light-mode");
+  const tickColor = isLight ? "#475569" : "#9aa3ae";
+  const gridColor = isLight ? "rgba(15, 23, 42, 0.08)" : "rgba(255, 255, 255, 0.05)";
+
   const hourlyCanvas = document.getElementById("hourlyActivityChart");
   if (hourlyCanvas) {
     if (activityCharts.hourly) activityCharts.hourly.destroy();
@@ -3265,12 +4468,12 @@ function renderActivityCharts() {
         },
         scales: {
           x: {
-            grid: { color: "rgba(255, 255, 255, 0.05)" },
-            ticks: { color: "#848c96", font: { size: 10, family: "Pretendard Variable" } }
+            grid: { color: gridColor },
+            ticks: { color: tickColor, font: { size: 10, family: "Pretendard Variable" } }
           },
           y: {
-            grid: { color: "rgba(255, 255, 255, 0.05)" },
-            ticks: { color: "#848c96", font: { size: 10, family: "Pretendard Variable" } }
+            grid: { color: gridColor },
+            ticks: { color: tickColor, font: { size: 10, family: "Pretendard Variable" } }
           }
         }
       }
@@ -3314,11 +4517,11 @@ function renderActivityCharts() {
         scales: {
           x: {
             grid: { display: false },
-            ticks: { color: "#848c96", font: { size: 10, family: "Pretendard Variable" } }
+            ticks: { color: tickColor, font: { size: 10, family: "Pretendard Variable" } }
           },
           y: {
-            grid: { color: "rgba(255, 255, 255, 0.05)" },
-            ticks: { color: "#848c96", font: { size: 10, family: "Pretendard Variable" } }
+            grid: { color: gridColor },
+            ticks: { color: tickColor, font: { size: 10, family: "Pretendard Variable" } }
           }
         }
       }
@@ -3534,34 +4737,57 @@ function closeTypeDetailModal() {
 function toggleAnonymize() {
   if (!currentData || !originalDataCache) return;
 
-  isAnonymized = !isAnonymized;
-  const nameMap = {};
+  isNameMasked = !isNameMasked;
+  isAnonymized = isNameMasked;
 
-  if (isAnonymized) {
-    const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    originalDataCache.members.forEach((m, idx) => {
-      nameMap[m.name] = `참여자 ${letters[idx % letters.length]}`;
-    });
+  // 미니게임 타겟 이름도 마스킹/실명 상태에 맞춰 동기화
+  let targetMemberIdx = -1;
+  if (villainGameTargetName && originalDataCache.members) {
+    targetMemberIdx = originalDataCache.members.findIndex(
+      m => m.name === villainGameTargetName || formatName(m.name, true) === villainGameTargetName || formatName(m.name, false) === villainGameTargetName
+    );
+  }
 
-    currentData.members.forEach(m => {
-      m.name = nameMap[m.id] || m.name;
-    });
+  currentData = buildDisplayDataFromCache(originalDataCache);
 
-    (currentData.pairRankings || []).forEach(p => {
-      p.pair = [nameMap[p.pair[0]] || p.pair[0], nameMap[p.pair[1]] || p.pair[1]];
-    });
-  } else {
-    currentData = JSON.parse(JSON.stringify(originalDataCache));
+  if (targetMemberIdx !== -1 && currentData.members && currentData.members[targetMemberIdx]) {
+    villainGameTargetName = currentData.members[targetMemberIdx].name;
   }
 
   updateAnonymizeButtonText();
   renderCurrentData();
+
+  // 포토카드 모달이 열려 있다면 즉시 동기화
+  const shareModal = document.getElementById("shareCardModal");
+  if (shareModal && !shareModal.classList.contains("hidden")) {
+    const select = document.getElementById("cardMemberSelect");
+    if (select && currentData.members) {
+      const prevIdx = currentCardMemberIndex;
+      select.innerHTML = "";
+      currentData.members.forEach((m, idx) => {
+        const opt = document.createElement("option");
+        opt.value = idx;
+        const isMe = Boolean(myMemberId && (m.id === myMemberId || m.name === myMemberId));
+        opt.innerText = `${m.name} (${m.cti || 'CTI'})${isMe ? ' 👑(나)' : ''}`;
+        select.appendChild(opt);
+      });
+      select.value = prevIdx;
+    }
+    renderShareCard();
+  }
+
+  showToast(
+    isNameMasked
+      ? "🕵️ 이름 가리기 모드가 적용되었습니다 (예: 김○지, 서○)"
+      : "🕵️ 실명 표시 모드로 복구되었습니다",
+    "info"
+  );
 }
 
 function updateAnonymizeButtonText() {
   const textEl = document.getElementById("anonymizeText");
   if (textEl) {
-    textEl.innerText = isAnonymized ? "실명 모드로 복구" : "이름 가리기 모드";
+    textEl.innerText = isNameMasked ? "실명 모드로 복구" : "이름 가리기 모드";
   }
 }
 
@@ -3569,16 +4795,20 @@ function captureCurrentTab() {
   const reportView = document.getElementById("reportView");
   if (!reportView) return;
 
+  const isLight = document.body.classList.contains("light-mode");
+  showToast("리포트 화면 이미지를 생성하는 중입니다...", "loading");
+
   html2canvas(reportView, {
-    backgroundColor: "#060608",
+    backgroundColor: isLight ? "#f8fafc" : "#060608",
     scale: 2
   }).then(canvas => {
     const link = document.createElement("a");
     link.download = `CTI_단톡방_리포트_${new Date().toISOString().slice(0,10)}.png`;
     link.href = canvas.toDataURL("image/png");
     link.click();
+    showToast("화면 캡처 이미지가 저장되었습니다", "success");
   }).catch(err => {
-    alert("캡처에 실패했습니다: " + err.message);
+    showToast("캡처에 실패했습니다: " + err.message, "error");
   });
 }
 
@@ -3600,12 +4830,26 @@ function openShareModal() {
   const modal = document.getElementById("shareCardModal");
   if (!modal) return;
 
+  const btnPersonal = document.getElementById("btnCardModePersonal");
+  const btnGroup = document.getElementById("btnCardModeGroup");
+  if (btnPersonal && btnGroup) {
+    if (selectedAnalysisMode === "romance") {
+      btnPersonal.innerHTML = `<i class="fa-solid fa-heart"></i> 개인 연애·썸 카드`;
+      btnGroup.innerHTML = `<i class="fa-solid fa-hearts"></i> 1:1 애정도 종합 카드`;
+    } else if (selectedAnalysisMode === "villain") {
+      btnPersonal.innerHTML = `<i class="fa-solid fa-id-badge"></i> 조원 성적표 카드`;
+      btnGroup.innerHTML = `<i class="fa-solid fa-trophy"></i> 조별과제 시상식 카드`;
+    } else {
+      btnPersonal.innerHTML = `<i class="fa-solid fa-user-astronaut"></i> 개인 캐릭터 카드`;
+      btnGroup.innerHTML = `<i class="fa-solid fa-users"></i> 단톡방 종합 리포트`;
+    }
+  }
+
   // 멤버 선택 셀렉트 옵션 채우기
   const select = document.getElementById("cardMemberSelect");
   if (select && currentData.members) {
     select.innerHTML = "";
 
-    // 만약 '나'로 지정된 멤버가 있다면 그 멤버를 기본 선택!
     let targetIdx = 0;
     if (myMemberId) {
       const myIdx = currentData.members.findIndex(m => m.id === myMemberId || m.name === myMemberId);
@@ -3662,6 +4906,7 @@ function onCardMemberChange(val) {
 function renderShareCard() {
   if (!currentData) return;
 
+  const canvasEl = document.getElementById("shareCardCanvas");
   const categoryTag = document.getElementById("cardCategoryTag");
   const subHeader = document.getElementById("cardSubHeader");
   const badgeRight = document.getElementById("cardBadgeRight");
@@ -3672,49 +4917,372 @@ function renderShareCard() {
   const heroCti = document.getElementById("cardHeroCti");
   const heroTitle = document.getElementById("cardHeroTitle");
   const heroSub = document.getElementById("cardHeroSub");
+  const cardHeroGlow = document.getElementById("cardHeroGlow");
 
-  // 캐릭터 맵 조회 헬퍼 (16개 전 유형 1:1 매칭 & Tainted Canvas 원천 차단 Base64 자동 연동)
-  const getCharData = (ctiCode) => {
+  // 캔버스 배경/텍스트 컬러를 인라인으로 강제 고정 (화이트 모드 및 캡처 시 깨짐 원천 차단)
+  if (canvasEl) {
+    if (selectedAnalysisMode === "romance") {
+      canvasEl.style.background = "linear-gradient(165deg, #1b0c18 0%, #100812 52%, #09060c 100%)";
+      canvasEl.style.borderColor = "rgba(244, 63, 94, 0.35)";
+    } else if (selectedAnalysisMode === "villain") {
+      canvasEl.style.background = "linear-gradient(165deg, #0b1815 0%, #090f14 52%, #12080c 100%)";
+      canvasEl.style.borderColor = "rgba(52, 211, 153, 0.35)";
+    } else {
+      canvasEl.style.background = "linear-gradient(165deg, #0f1722 0%, #090e13 55%, #06090d 100%)";
+      canvasEl.style.borderColor = "rgba(245, 183, 61, 0.3)";
+    }
+    canvasEl.style.color = "#f6f8fa";
+  }
+
+  const getCharDataLocal = (ctiCode) => {
     const code = (ctiCode || "ELFA").toUpperCase();
     const ctiDef = (window.CTI_SYSTEM && window.CTI_SYSTEM.TYPES) ? window.CTI_SYSTEM.TYPES[code] : null;
     const charKey = (ctiDef && ctiDef.character) ? ctiDef.character.toUpperCase() : code;
-    const base = (window.CTI_SYSTEM && window.CTI_SYSTEM.CHARACTERS && window.CTI_SYSTEM.CHARACTERS[charKey]) 
-      ? { ...window.CTI_SYSTEM.CHARACTERS[charKey] } 
+    const base = (window.CTI_SYSTEM && window.CTI_SYSTEM.CHARACTERS && window.CTI_SYSTEM.CHARACTERS[charKey])
+      ? { ...window.CTI_SYSTEM.CHARACTERS[charKey] }
       : { id: charKey.toLowerCase(), name: "CTI 캐릭터", desc: "단톡방 성향", img: `images/characters/cutout_${charKey.toLowerCase()}.png`, color: "#f5b73d" };
 
-    // window.CTI_AVATARS에 Base64 Data URL이 있으면 우선 사용 (file:/// 보안 sandbox 오염 방지)
     if (window.CTI_AVATARS && window.CTI_AVATARS[charKey]) {
       base.img = window.CTI_AVATARS[charKey];
     } else if (window.CTI_AVATARS && window.CTI_AVATARS[code]) {
       base.img = window.CTI_AVATARS[code];
+    } else if (window.CTI_AVATARS && window.CTI_AVATARS["ELFA"]) {
+      base.img = window.CTI_AVATARS["ELFA"];
     }
     return base;
   };
 
-  if (currentCardMode === "personal") {
-    // [개인 포토카드 모드]
-    const m = (currentData.members && currentData.members[currentCardMemberIndex]) 
-      ? currentData.members[currentCardMemberIndex] 
-      : (currentData.members ? currentData.members[0] : null);
+  const m = (currentData.members && currentData.members[currentCardMemberIndex])
+    ? currentData.members[currentCardMemberIndex]
+    : (currentData.members ? currentData.members[0] : null);
 
+  // ==================== 모드 2: 💘 썸·연인 1:1 애정도 전용 포토카드 템플릿 ====================
+  if (selectedAnalysisMode === "romance") {
+    const acadRom = (currentData.academicMetrics && currentData.academicMetrics.romance) || {};
+    const mA = acadRom.mA || (currentData.members && currentData.members[0]) || m;
+    const mB = acadRom.mB || (currentData.members && currentData.members[1]) || mA;
+    const loveScore = acadRom.loveScore || 88;
+    const pushPullText = acadRom.pushPullText || "서로 호감 신호를 주고받는 달달한 관계";
+
+    if (currentCardMode === "personal" && m) {
+      const charInfo = getCharDataLocal(m.cti);
+      const isMoreInLove = acadRom.moreInLove && acadRom.moreInLove.name === m.name;
+      const myAffection = (mA && m.name === mA.name) ? (acadRom.affectionA || 85) : (acadRom.affectionB || 82);
+      const myReply = (mA && m.name === mA.name) ? (acadRom.replyA || 5) : (acadRom.replyB || 7);
+
+      if (categoryTag) {
+        categoryTag.innerText = "ROMANCE AFFECTION CARD";
+        categoryTag.style.color = "#fb7185";
+      }
+      if (subHeader) subHeader.innerText = `${currentData.roomName || '1:1 대화방'} • 썸·연인 분석`;
+      if (badgeRight) {
+        badgeRight.innerText = `호감도 ${myAffection}%`;
+        badgeRight.style.backgroundColor = "rgba(244,63,94,0.2)";
+        badgeRight.style.color = "#fda4af";
+        badgeRight.style.borderColor = "rgba(244,63,94,0.4)";
+      }
+
+      if (heroSection) heroSection.classList.remove("hidden");
+      if (charImg) {
+        charImg.src = charInfo.img;
+        charImg.alt = m.name;
+      }
+      if (heroName) {
+        heroName.innerText = m.name;
+        heroName.style.color = "#ffffff";
+      }
+      if (heroCti) {
+        heroCti.innerText = isMoreInLove ? "💘 더 반한 쪽" : "💞 설렘 유발자";
+        heroCti.style.backgroundColor = "#f43f5e";
+        heroCti.style.color = "#ffffff";
+      }
+      if (heroTitle) {
+        heroTitle.innerText = `${m.title || charInfo.name} (${m.cti})`;
+        heroTitle.style.color = "#fda4af";
+      }
+      if (heroSub) {
+        const quote = (m.quotes && m.quotes[0]) ? m.quotes[0] : "우리 지금 꽤 달달한 것 같은데?";
+        heroSub.innerText = `"${quote}"`;
+        heroSub.style.color = "#e2e8f0";
+      }
+      if (cardHeroGlow) {
+        cardHeroGlow.style.background = "radial-gradient(circle, rgba(244,63,94,0.35) 0%, transparent 70%)";
+      }
+
+      if (bodySection) {
+        bodySection.innerHTML = `
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;text-align:left;">
+            <div style="background:#140913;border:1px solid rgba(244,63,94,0.28);border-radius:14px;padding:10px;">
+              <span style="font-size:9px;color:#fda4af;font-weight:700;display:block;">💗 내 애정 표현 지수</span>
+              <p style="font-size:13px;font-weight:900;color:#ffffff;margin-top:2px;">${myAffection}점 <span style="font-size:10px;color:#fb7185;">(대화 ${m.msgRatio}%)</span></p>
+            </div>
+            <div style="background:#140913;border:1px solid rgba(244,63,94,0.28);border-radius:14px;padding:10px;">
+              <span style="font-size:9px;color:#fda4af;font-weight:700;display:block;">⚡ 평균 답장 속도</span>
+              <p style="font-size:13px;font-weight:900;color:#ffffff;margin-top:2px;">${myReply}분 <span style="font-size:10px;color:#f5b73d;">(선톡 ${m.starters || 0}회)</span></p>
+            </div>
+          </div>
+          <div style="background:#140913;border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:10px;text-align:left;">
+            <span style="font-size:9px;font-weight:800;color:#fb7185;display:block;margin-bottom:4px;">💌 대화 속 호감 시그널 진단</span>
+            <p style="font-size:11px;color:#f8fafc;line-height:1.45;font-weight:600;word-break:keep-all;">
+              ${pushPullText}
+            </p>
+          </div>
+          <div style="background:linear-gradient(90deg,rgba(244,63,94,0.18),rgba(245,183,61,0.14));border:1px solid rgba(244,63,94,0.35);border-radius:14px;padding:10px;text-align:left;">
+            <span style="font-size:9px;font-weight:900;color:#fda4af;display:block;margin-bottom:3px;">🌡️ 두 사람의 종합 설렘 온도</span>
+            <p style="font-size:12px;color:#ffffff;font-weight:800;">💘 종합 썸·연애 케미 ${loveScore}% • ${acadRom.stageLabel || "핑크빛 기류 폭발"}</p>
+          </div>
+        `;
+      }
+    } else {
+      // 모드 2 종합 카드: 두 사람의 1:1 커플/썸 매치업 리포트
+      const charA = getCharDataLocal(mA ? mA.cti : "ELFA");
+      const charB = getCharDataLocal(mB ? mB.cti : "ILFR");
+      if (categoryTag) {
+        categoryTag.innerText = "COUPLE & SOME REPORT";
+        categoryTag.style.color = "#fb7185";
+      }
+      if (subHeader) subHeader.innerText = `${mA ? mA.name : '나'} ❤️ ${mB ? mB.name : '상대방'} • 1:1 정밀 분석`;
+      if (badgeRight) {
+        badgeRight.innerText = `케미 ${loveScore}%`;
+        badgeRight.style.backgroundColor = "rgba(244,63,94,0.2)";
+        badgeRight.style.color = "#fda4af";
+      }
+      if (heroSection) heroSection.classList.add("hidden");
+
+      if (bodySection) {
+        bodySection.innerHTML = `
+          <div style="display:flex;flex-direction:column;gap:8px;text-align:left;">
+            <div style="background:#160a14;border:1px solid rgba(244,63,94,0.32);border-radius:16px;padding:12px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+              <div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:0;">
+                <img src="${charA.img}" style="width:48px;height:48px;border-radius:9999px;background:#241120;padding:4px;border:2px solid #fb7185;object-fit:contain;">
+                <span style="font-size:12px;font-weight:900;color:#ffffff;margin-top:4px;">${mA ? mA.name : '참여자 A'}</span>
+                <span style="font-size:10px;color:#fda4af;font-weight:700;">호감 ${acadRom.affectionA || 86}%</span>
+              </div>
+              <div style="text-align:center;padding:0 4px;">
+                <div style="font-size:18px;font-weight:900;color:#fb7185;">💘 ${loveScore}%</div>
+                <span style="font-size:9px;color:#f5b73d;font-weight:800;display:block;margin-top:2px;">1:1 애정 지수</span>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:0;">
+                <img src="${charB.img}" style="width:48px;height:48px;border-radius:9999px;background:#241120;padding:4px;border:2px solid #f5b73d;object-fit:contain;">
+                <span style="font-size:12px;font-weight:900;color:#ffffff;margin-top:4px;">${mB ? mB.name : '참여자 B'}</span>
+                <span style="font-size:10px;color:#fde68a;font-weight:700;">호감 ${acadRom.affectionB || 82}%</span>
+              </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;">
+              <div style="background:#120810;border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:8px;">
+                <span style="font-size:9px;color:#94a3b8;font-weight:700;display:block;">👑 더 많이 좋아하는 사람</span>
+                <p style="font-size:12px;font-weight:900;color:#fda4af;margin-top:2px;">${acadRom.moreInLove ? acadRom.moreInLove.name : (mA ? mA.name : '동률')}</p>
+              </div>
+              <div style="background:#120810;border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:8px;">
+                <span style="font-size:9px;color:#94a3b8;font-weight:700;display:block;">⚡ 평균 답장 템포</span>
+                <p style="font-size:12px;font-weight:900;color:#ffffff;margin-top:2px;">${acadRom.replyA || 5}분 vs ${acadRom.replyB || 7}분</p>
+              </div>
+              <div style="background:#120810;border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:8px;">
+                <span style="font-size:9px;color:#94a3b8;font-weight:700;display:block;">💬 총 대화 메시지</span>
+                <p style="font-size:12px;font-weight:900;color:#ffffff;margin-top:2px;">${(currentData.totalMessages || 0).toLocaleString()}건</p>
+              </div>
+              <div style="background:#120810;border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:8px;">
+                <span style="font-size:9px;color:#94a3b8;font-weight:700;display:block;">🌙 심야 대화 골든타임</span>
+                <p style="font-size:12px;font-weight:900;color:#fde68a;margin-top:2px;">${(currentData.activity && currentData.activity.peakHour) || "밤 22시-24시"}</p>
+              </div>
+            </div>
+
+            <div style="background:linear-gradient(90deg,rgba(244,63,94,0.16),rgba(168,85,247,0.16));border:1px solid rgba(244,63,94,0.32);border-radius:12px;padding:10px;">
+              <span style="font-size:9px;font-weight:900;color:#fda4af;display:block;margin-bottom:3px;">💞 AI 관계 총평</span>
+              <p style="font-size:10.5px;color:#ffffff;line-height:1.45;font-weight:600;word-break:keep-all;">
+                "${pushPullText}"
+              </p>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    setShareRatio(currentShareRatio || "story");
+    return;
+  }
+
+  // ==================== 모드 3: 🚨 조별과제 기여도 & 빌런 전용 포토카드 템플릿 ====================
+  if (selectedAnalysisMode === "villain") {
+    const acadVillain = (currentData.academicMetrics && currentData.academicMetrics.villain) || {};
+    const profiles = acadVillain.profiles || [];
+    const topHero = acadVillain.topHero || profiles[0];
+    const topVillain = acadVillain.topVillain || profiles[profiles.length - 1];
+
+    if (currentCardMode === "personal" && m) {
+      const p = profiles.find(x => x.name === m.name) || profiles[0] || {
+        name: m.name,
+        cti: m.cti,
+        grade: "B+",
+        contributionScore: 70,
+        loafingScore: 25,
+        msgRatio: m.msgRatio || 20,
+        workShareCount: 2,
+        tokenRatio: 15,
+        replySpeed: 10,
+        roleBadge: "든든 조원"
+      };
+      const charInfo = getCharDataLocal(p.cti || m.cti);
+      const isVillain = p.loafingScore >= 55 || p.grade === "F" || p.grade === "C-";
+
+      if (categoryTag) {
+        categoryTag.innerText = "TEAM PROJECT GRADE CARD";
+        categoryTag.style.color = isVillain ? "#fb7185" : "#34d399";
+      }
+      if (subHeader) subHeader.innerText = `${currentData.roomName || '조별과제 단톡방'} • 기여도 성적표`;
+      if (badgeRight) {
+        badgeRight.innerText = `추천 학점 ${p.grade}`;
+        badgeRight.style.backgroundColor = isVillain ? "rgba(244,63,94,0.22)" : "rgba(52,211,153,0.22)";
+        badgeRight.style.color = isVillain ? "#fda4af" : "#6ee7b7";
+      }
+
+      if (heroSection) heroSection.classList.remove("hidden");
+      if (charImg) {
+        charImg.src = charInfo.img;
+        charImg.alt = p.name;
+      }
+      if (heroName) {
+        heroName.innerText = p.name;
+        heroName.style.color = "#ffffff";
+      }
+      if (heroCti) {
+        heroCti.innerText = `학점 ${p.grade}`;
+        heroCti.style.backgroundColor = isVillain ? "#e11d48" : "#10b981";
+        heroCti.style.color = "#ffffff";
+      }
+      if (heroTitle) {
+        heroTitle.innerText = getVillainRoleBadgeText(p) || p.roleBadge || "조별과제 참여자";
+        heroTitle.style.color = isVillain ? "#fda4af" : "#6ee7b7";
+      }
+      if (heroSub) {
+        const quote = (m.quotes && m.quotes[0]) ? m.quotes[0] : "제가 자료 취합해서 공유할게요!";
+        heroSub.innerText = `"${quote}"`;
+        heroSub.style.color = "#e2e8f0";
+      }
+      if (cardHeroGlow) {
+        cardHeroGlow.style.background = isVillain
+          ? "radial-gradient(circle, rgba(244,63,94,0.38) 0%, transparent 70%)"
+          : "radial-gradient(circle, rgba(16,185,129,0.38) 0%, transparent 70%)";
+      }
+
+      if (bodySection) {
+        bodySection.innerHTML = `
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;text-align:left;">
+            <div style="background:#0a1412;border:1px solid rgba(52,211,153,0.28);border-radius:14px;padding:10px;">
+              <span style="font-size:9px;color:#6ee7b7;font-weight:700;display:block;">🏆 과제 기여 점수</span>
+              <p style="font-size:13px;font-weight:900;color:#ffffff;margin-top:2px;">${p.contributionScore}점 <span style="font-size:10px;color:#34d399;">(자료 ${p.workShareCount || 0}회)</span></p>
+            </div>
+            <div style="background:#170a0f;border:1px solid rgba(244,63,94,0.28);border-radius:14px;padding:10px;">
+              <span style="font-size:9px;color:#fda4af;font-weight:700;display:block;">🚨 빌런 위험 지수</span>
+              <p style="font-size:13px;font-weight:900;color:#ffffff;margin-top:2px;">${p.loafingScore}% <span style="font-size:10px;color:#fb7185;">(단답 ${p.tokenRatio}%)</span></p>
+            </div>
+          </div>
+          <div style="background:#0c1118;border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:10px;text-align:left;">
+            <span style="font-size:9px;font-weight:800;color:#f5b73d;display:block;margin-bottom:4px;">📊 실무 참여 핵심 수치</span>
+            <p style="font-size:11px;color:#f8fafc;font-weight:700;">
+              대화 지분 ${p.msgRatio}% · 먼저 의견 ${p.starters || 0}회 · 평균 답장 ${p.replySpeed}분
+            </p>
+          </div>
+          <div style="background:linear-gradient(90deg,rgba(16,185,129,0.15),rgba(244,63,94,0.15));border:1px solid rgba(255,255,255,0.15);border-radius:14px;padding:10px;text-align:left;">
+            <span style="font-size:9px;font-weight:900;color:#fde68a;display:block;margin-bottom:3px;">⚖️ AI 조별과제 최종 판정</span>
+            <p style="font-size:10.5px;color:#ffffff;line-height:1.45;font-weight:600;word-break:keep-all;">
+              ${getVillainDiagnosisText(p)}
+            </p>
+          </div>
+        `;
+      }
+    } else {
+      // 모드 3 종합 카드: 조별과제 기여도 시상식 & 성적표 요약
+      if (categoryTag) {
+        categoryTag.innerText = "TEAM PROJECT AWARDS";
+        categoryTag.style.color = "#34d399";
+      }
+      if (subHeader) subHeader.innerText = `${currentData.roomName || '조별과제 단톡방'} • 최종 성적표`;
+      if (badgeRight) {
+        badgeRight.innerText = `${profiles.length}명 분석`;
+        badgeRight.style.backgroundColor = "rgba(52,211,153,0.2)";
+        badgeRight.style.color = "#6ee7b7";
+      }
+      if (heroSection) heroSection.classList.add("hidden");
+
+      const sortedByContrib = [...profiles].sort((a, b) => b.contributionScore - a.contributionScore);
+      const rowsHtml = sortedByContrib.slice(0, 5).map((p, idx) => {
+        const isV = p.loafingScore >= 55 || p.grade === "F" || p.grade === "C-";
+        return `
+          <div style="display:flex;align-items:center;justify-content:space-between;background:${isV ? '#190b10' : '#0b1514'};border:1px solid ${isV ? 'rgba(244,63,94,0.3)' : 'rgba(52,211,153,0.25)'};border-radius:10px;padding:6px 10px;">
+            <div style="display:flex;align-items:center;gap:6px;min-width:0;">
+              <span style="font-size:10px;font-weight:900;color:${idx === 0 ? '#fde047' : '#94a3b8'};">${idx + 1}위</span>
+              <span style="font-size:11px;font-weight:900;color:#ffffff;">${p.name}</span>
+              <span style="font-size:9px;font-weight:900;padding:1px 5px;border-radius:5px;background:${isV ? '#e11d48' : '#10b981'};color:#ffffff;">${p.grade}</span>
+            </div>
+            <div style="font-size:10px;font-weight:800;color:#e2e8f0;white-space:nowrap;">
+              기여 <strong style="color:#34d399;">${p.contributionScore}점</strong> · 위험 <strong style="color:#fb7185;">${p.loafingScore}%</strong>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      if (bodySection) {
+        bodySection.innerHTML = `
+          <div style="display:flex;flex-direction:column;gap:8px;text-align:left;">
+            <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;">
+              <div style="background:#0a1714;border:1px solid rgba(52,211,153,0.35);border-radius:12px;padding:9px;">
+                <span style="font-size:9px;color:#6ee7b7;font-weight:800;display:block;">👑 하드캐리 총대장 1위</span>
+                <p style="font-size:13px;font-weight:900;color:#ffffff;margin-top:2px;">${topHero ? topHero.name : '-'} <span style="font-size:10px;color:#34d399;">(${topHero ? topHero.grade : 'A+'})</span></p>
+                <span style="font-size:9px;color:#94a3b8;display:block;margin-top:1px;">기여 ${topHero ? topHero.contributionScore : 0}점 · 자료 ${topHero ? (topHero.workShareCount || 0) : 0}회</span>
+              </div>
+              <div style="background:#190a10;border:1px solid rgba(244,63,94,0.35);border-radius:12px;padding:9px;">
+                <span style="font-size:9px;color:#fda4af;font-weight:800;display:block;">🚨 무임승차 주의 1위</span>
+                <p style="font-size:13px;font-weight:900;color:#ffffff;margin-top:2px;">${topVillain ? topVillain.name : '-'} <span style="font-size:10px;color:#fb7185;">(${topVillain ? topVillain.grade : 'F'})</span></p>
+                <span style="font-size:9px;color:#94a3b8;display:block;margin-top:1px;">위험도 ${topVillain ? topVillain.loafingScore : 0}% · 단답 ${topVillain ? topVillain.tokenRatio : 0}%</span>
+              </div>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:5px;">
+              <span style="font-size:9px;font-weight:800;color:#94a3b8;">📋 조원별 핵심 기여도 & 학점 성적표</span>
+              ${rowsHtml}
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    setShareRatio(currentShareRatio || "story");
+    return;
+  }
+
+  // ==================== 모드 1 (기본): 🔥 우리 단톡방 케미 & 권력 서열 포토카드 템플릿 ====================
+  if (currentCardMode === "personal") {
     if (!m) return;
 
     const ctiDef = window.CTI_SYSTEM && window.CTI_SYSTEM.TYPES ? window.CTI_SYSTEM.TYPES[m.cti] : null;
-    const charInfo = getCharData(m.cti);
+    const charInfo = getCharDataLocal(m.cti);
 
-    if (categoryTag) categoryTag.innerText = "CTI PERSONAL IDENTITY";
+    if (categoryTag) {
+      categoryTag.innerText = "CTI PERSONAL IDENTITY";
+      categoryTag.style.color = "#f5b73d";
+    }
     if (subHeader) subHeader.innerText = `${currentData.roomName || '단톡방'} • ${currentData.dateRange || '최근 분석'}`;
-    if (badgeRight) badgeRight.innerText = `${m.msgRatio || 0}% 지분`;
+    if (badgeRight) {
+      badgeRight.innerText = `${m.msgRatio || 0}% 지분`;
+      badgeRight.style.backgroundColor = "rgba(255,255,255,0.06)";
+      badgeRight.style.color = "#f5b73d";
+    }
 
     if (heroSection) heroSection.classList.remove("hidden");
     if (charImg) {
       charImg.src = charInfo.img;
       charImg.alt = charInfo.name;
     }
-    if (heroName) heroName.innerText = m.name;
+    if (heroName) {
+      heroName.innerText = m.name;
+      heroName.style.color = "#ffffff";
+    }
     if (heroCti) {
       heroCti.innerText = m.cti || "CTI";
       heroCti.style.backgroundColor = charInfo.color || "#f5b73d";
+      heroCti.style.color = "#030708";
     }
     if (heroTitle) {
       heroTitle.innerText = m.title || (ctiDef ? ctiDef.title : charInfo.name);
@@ -3723,196 +5291,159 @@ function renderShareCard() {
     if (heroSub) {
       const subText = (ctiDef && ctiDef.sub) ? ctiDef.sub : (m.quotes && m.quotes.length > 0 ? m.quotes[0] : charInfo.desc);
       heroSub.innerText = `"${subText}"`;
+      heroSub.style.color = "#cbd5e1";
     }
 
-    // 글로우 색상 동기화 (라디얼 그라데이션)
-    const cardHeroGlow = document.getElementById("cardHeroGlow");
     if (cardHeroGlow) {
       cardHeroGlow.style.background = `radial-gradient(circle, ${(charInfo.color || '#f5b73d')}44 0%, transparent 70%)`;
     }
 
-    // 바디: 핵심 스탯 & 시그니처 말버릇 알약 태그
     if (bodySection) {
       const sigs = (m.signatures || (m.topWords ? m.topWords.map(w => w.word) : [])).slice(0, 3);
-      const sigPills = sigs.map(s => `<span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-[#16202a] text-[#f5b73d] border border-[#f5b73d]/30 whitespace-nowrap shadow-sm">#${s}</span>`).join(" ");
+      const sigPills = sigs.map(s => `<span style="padding:3px 9px;border-radius:9999px;font-size:10px;font-weight:700;background:#16202a;color:#f5b73d;border:1px solid rgba(245,183,61,0.3);white-space:nowrap;">#${s}</span>`).join(" ");
 
-      // 팩폭 리포트 요약본 (온전한 문장 제시, 끝 짤림 방지)
-      const savageText = (ctiDef && ctiDef.savageShort) 
-        ? ctiDef.savageShort 
-        : (m.savage 
-            ? (m.savage.split(". ")[0] + (m.savage.includes(".") ? "." : "")) 
+      const savageText = (ctiDef && ctiDef.savageShort)
+        ? ctiDef.savageShort
+        : (m.savage
+            ? (m.savage.split(". ")[0] + (m.savage.includes(".") ? "." : ""))
             : "단톡방의 침묵을 깨고 활기를 불어넣는 텐션 메이커!");
 
       bodySection.innerHTML = `
-        <!-- 지표 2열 카드 (줄바꿈 및 받침 잘림 방지) -->
-        <div class="grid grid-cols-2 gap-2 text-left">
-          <div class="bg-[#090e13]/90 border border-white/[0.08] rounded-2xl p-2.5">
-            <span class="text-[9px] text-[#848c96] font-bold block whitespace-nowrap">💬 총 발화량</span>
-            <p class="text-xs font-black text-white mt-0.5 whitespace-nowrap break-keep leading-normal pb-0.5">
-              ${(m.totalMsgs || 0).toLocaleString()}건 <span class="text-[10px] text-[#f5b73d]">(${m.msgRatio}%)</span>
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;text-align:left;">
+          <div style="background:#090e13;border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:10px;">
+            <span style="font-size:9px;color:#848c96;font-weight:700;display:block;white-space:nowrap;">💬 총 발화량</span>
+            <p style="font-size:12px;font-weight:900;color:#ffffff;margin-top:2px;white-space:nowrap;">
+              ${(m.totalMsgs || 0).toLocaleString()}건 <span style="font-size:10px;color:#f5b73d;">(${m.msgRatio}%)</span>
             </p>
           </div>
-          <div class="bg-[#090e13]/90 border border-white/[0.08] rounded-2xl p-2.5">
-            <span class="text-[9px] text-[#848c96] font-bold block whitespace-nowrap">⚡ 평균 문장 길이</span>
-            <p class="text-xs font-black text-white mt-0.5 whitespace-nowrap break-keep leading-normal pb-0.5">
-              ${m.avgLen || 0}자 <span class="text-[10px] text-emerald-400">(${m.avgLen > 10 ? '서사형' : '압축단답'})</span>
+          <div style="background:#090e13;border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:10px;">
+            <span style="font-size:9px;color:#848c96;font-weight:700;display:block;white-space:nowrap;">⚡ 평균 문장 길이</span>
+            <p style="font-size:12px;font-weight:900;color:#ffffff;margin-top:2px;white-space:nowrap;">
+              ${m.avgLen || 0}자 <span style="font-size:10px;color:#34d399;">(${m.avgLen > 10 ? '서사형' : '압축단답'})</span>
             </p>
           </div>
         </div>
 
-        <!-- 시그니처 말버릇 (가로 스크롤/랩 최소화) -->
-        <div class="bg-[#090e13]/90 border border-white/[0.08] rounded-2xl p-2.5 text-left space-y-1">
-          <div class="flex items-center justify-between">
-            <span class="text-[9px] font-bold text-[#848c96] uppercase tracking-wider flex items-center gap-1 whitespace-nowrap">
-              <span>🏷️</span> 입에 붙은 시그니처 말버릇
-            </span>
-          </div>
-          <div class="flex flex-wrap gap-1.5 pt-0.5 items-center">
-            ${sigPills || '<span class="text-[10px] text-[#848c96] whitespace-nowrap">#티키타카</span>'}
+        <div style="background:#090e13;border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:10px;text-align:left;">
+          <span style="font-size:9px;font-weight:700;color:#848c96;display:block;margin-bottom:4px;">🏷️ 입에 붙은 시그니처 말버릇</span>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+            ${sigPills || '<span style="font-size:10px;color:#848c96;">#티키타카</span>'}
           </div>
         </div>
 
-        <!-- 뼈 때리는 팩폭 리포트 요약본 (끝 잘림 방지, 100% 온전한 문장 노출) -->
-        <div class="bg-gradient-to-r from-[rgba(245,183,61,0.12)] to-[rgba(139,92,246,0.12)] border border-[rgba(245,183,61,0.25)] rounded-2xl p-2.5 text-left">
-          <div class="flex items-center gap-1.5 text-[9px] font-black text-[#f5b73d] uppercase tracking-wider mb-1 whitespace-nowrap">
-            <span>💀</span> 팩폭 리포트 요약
-          </div>
-          <p class="text-[11px] text-[#f6f8fa] leading-snug font-medium break-keep">
+        <div style="background:linear-gradient(90deg,rgba(245,183,61,0.14),rgba(139,92,246,0.14));border:1px solid rgba(245,183,61,0.28);border-radius:14px;padding:10px;text-align:left;">
+          <div style="font-size:9px;font-weight:900;color:#f5b73d;margin-bottom:3px;">💀 팩폭 리포트 요약</div>
+          <p style="font-size:11px;color:#f6f8fa;line-height:1.4;font-weight:500;word-break:keep-all;">
             ${savageText}
           </p>
         </div>
       `;
     }
-
   } else {
-    // [단톡방 종합 포토카드 모드 - 다채롭고 풍부한 인포그래픽 리포트]
-    if (categoryTag) categoryTag.innerText = "CTI GROUP REPORT";
+    if (categoryTag) {
+      categoryTag.innerText = "CTI GROUP REPORT";
+      categoryTag.style.color = "#f5b73d";
+    }
     if (subHeader) subHeader.innerText = `${currentData.roomName || '단톡방'} • ${currentData.dateRange || '전체 기간'}`;
-    if (badgeRight) badgeRight.innerText = `우정 ${currentData.groupGrade || 'S+'}`;
+    if (badgeRight) {
+      badgeRight.innerText = `우정 ${currentData.groupGrade || 'S+'}`;
+      badgeRight.style.backgroundColor = "rgba(255,255,255,0.06)";
+      badgeRight.style.color = "#f5b73d";
+    }
 
     if (heroSection) heroSection.classList.add("hidden");
 
     if (bodySection) {
-      // 1. 핵심 4대 스탯 (총 대화량, 최다 발화러, 골든타임, 평화지수)
       const topTalker = (currentData.members && currentData.members.length > 0) ? currentData.members[0] : null;
-      const peakTime = (currentData.activity && currentData.activity.peakHour) 
+      const peakTime = (currentData.activity && currentData.activity.peakHour)
         ? `${currentData.activity.peakWeekday ? currentData.activity.peakWeekday + ' ' : ''}${currentData.activity.peakHour}`
         : (topTalker && topTalker.activeHours ? topTalker.activeHours : "심야 22시");
       const peace = currentData.peaceIndex !== undefined ? currentData.peaceIndex : 100;
 
-      // 2. 단톡방 핫 키워드 TOP 4
       let hotKeywords = [];
       if (currentData.keywords && currentData.keywords.roomKeywords && currentData.keywords.roomKeywords.length > 0) {
         hotKeywords = currentData.keywords.roomKeywords.slice(0, 4).map(k => typeof k === 'string' ? k : k.word);
       } else {
         const wordMap = {};
-        (currentData.members || []).forEach(m => {
-          (m.signatures || []).forEach(s => { wordMap[s] = (wordMap[s] || 0) + 1; });
-          (m.topWords || []).forEach(w => { wordMap[w.word] = (wordMap[w.word] || 0) + (w.count || 1); });
+        (currentData.members || []).forEach(mem => {
+          (mem.signatures || []).forEach(s => { wordMap[s] = (wordMap[s] || 0) + 1; });
+          (mem.topWords || []).forEach(w => { wordMap[w.word] = (wordMap[w.word] || 0) + (w.count || 1); });
         });
         hotKeywords = Object.entries(wordMap).sort((a, b) => b[1] - a[1]).slice(0, 4).map(x => x[0]);
       }
-      const kwPills = hotKeywords.map(w => `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#16202a] text-[#f5b73d] border border-[#f5b73d]/30 whitespace-nowrap">#${w}</span>`).join(" ");
+      const kwPills = hotKeywords.map(w => `<span style="padding:2px 8px;border-radius:9999px;font-size:10px;font-weight:700;background:#16202a;color:#f5b73d;border:1px solid rgba(245,183,61,0.3);white-space:nowrap;">#${w}</span>`).join(" ");
 
-      // 3. 1:1 베스트 듀오 정보
       const topPair = (currentData.pairRankings && currentData.pairRankings.length > 0) ? currentData.pairRankings[0] : null;
 
-      // 4. 멤버 라인업 (상위 4인 캐릭터 카드)
-      const memberChips = (currentData.members || []).slice(0, 4).map(m => {
-        const cInfo = getCharData(m.cti);
+      const memberChips = (currentData.members || []).slice(0, 4).map(mem => {
+        const cInfo = getCharDataLocal(mem.cti);
         return `
-          <div class="bg-[#0c1218]/90 border border-white/[0.08] rounded-xl p-1.5 flex items-center gap-2">
-            <div class="w-9 h-9 rounded-lg bg-gradient-to-b from-[#1c2734] to-[#0c131a] border border-white/[0.1] flex items-center justify-center p-0.5 shrink-0 overflow-hidden">
-              <img src="${cInfo.img}" class="w-full h-full object-contain">
+          <div style="background:#0c1218;border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:6px;display:flex;align-items:center;gap:6px;">
+            <div style="width:32px;height:32px;border-radius:8px;background:#16202a;border:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;padding:2px;flex-shrink:0;overflow:hidden;">
+              <img src="${cInfo.img}" style="width:100%;height:100%;object-fit:contain;">
             </div>
-            <div class="min-w-0 flex-grow text-left">
-              <div class="flex items-center gap-1">
-                <span class="text-[11px] font-bold text-white truncate">${m.name}</span>
-                <span class="text-[8px] font-extrabold px-1 rounded text-[#030708]" style="background-color: ${cInfo.color || '#f5b73d'};">${m.cti}</span>
+            <div style="min-width:0;flex-grow:1;text-align:left;">
+              <div style="display:flex;align-items:center;gap:4px;">
+                <span style="font-size:11px;font-weight:800;color:#ffffff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${mem.name}</span>
+                <span style="font-size:8px;font-weight:900;padding:1px 4px;border-radius:4px;color:#030708;background-color:${cInfo.color || '#f5b73d'};">${mem.cti}</span>
               </div>
-              <p class="text-[9px] text-[#848c96] truncate">${m.title || cInfo.name}</p>
+              <p style="font-size:9px;color:#848c96;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${mem.title || cInfo.name}</p>
             </div>
-            <span class="text-[9px] font-bold text-[#f5b73d] pr-1 shrink-0">${m.msgRatio}%</span>
+            <span style="font-size:9px;font-weight:800;color:#f5b73d;flex-shrink:0;">${mem.msgRatio}%</span>
           </div>
         `;
       }).join("");
 
       bodySection.innerHTML = `
-        <div class="space-y-2 text-left">
-          <!-- [A] 단톡방 4대 핵심 지표 (2x2 그리드, 줄바꿈 및 받침 잘림 방지) -->
-          <div class="grid grid-cols-2 gap-1.5">
-            <div class="bg-[#090e13]/90 border border-white/[0.08] rounded-xl p-2 text-left">
-              <span class="text-[9px] text-[#848c96] font-bold block whitespace-nowrap">💬 총 대화량</span>
-              <p class="text-xs font-black text-white mt-0.5 whitespace-nowrap break-keep leading-normal pb-0.5">
-                ${(currentData.totalMessages || 0).toLocaleString()}건
-              </p>
+        <div style="display:flex;flex-direction:column;gap:8px;text-align:left;">
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;">
+            <div style="background:#090e13;border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:8px;">
+              <span style="font-size:9px;color:#848c96;font-weight:700;display:block;">💬 총 대화량</span>
+              <p style="font-size:12px;font-weight:900;color:#ffffff;margin-top:2px;">${(currentData.totalMessages || 0).toLocaleString()}건</p>
             </div>
-            <div class="bg-[#090e13]/90 border border-white/[0.08] rounded-xl p-2 text-left">
-              <span class="text-[9px] text-[#848c96] font-bold block whitespace-nowrap">👑 최다 발화러</span>
-              <p class="text-xs font-black text-white mt-0.5 whitespace-nowrap break-keep leading-normal pb-0.5">
-                ${topTalker ? topTalker.name : '대화러'} <span class="text-[10px] text-[#f5b73d]">(${topTalker ? topTalker.msgRatio : 0}%)</span>
-              </p>
+            <div style="background:#090e13;border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:8px;">
+              <span style="font-size:9px;color:#848c96;font-weight:700;display:block;">👑 최다 발화러</span>
+              <p style="font-size:12px;font-weight:900;color:#ffffff;margin-top:2px;">${topTalker ? topTalker.name : '대화러'} <span style="font-size:10px;color:#f5b73d;">(${topTalker ? topTalker.msgRatio : 0}%)</span></p>
             </div>
-            <div class="bg-[#090e13]/90 border border-white/[0.08] rounded-xl p-2 text-left">
-              <span class="text-[9px] text-[#848c96] font-bold block whitespace-nowrap">⏰ 활성 골든타임</span>
-              <p class="text-xs font-black text-white mt-0.5 whitespace-nowrap break-keep leading-normal pb-0.5">
-                ${peakTime}
-              </p>
+            <div style="background:#090e13;border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:8px;">
+              <span style="font-size:9px;color:#848c96;font-weight:700;display:block;">⏰ 활성 골든타임</span>
+              <p style="font-size:12px;font-weight:900;color:#ffffff;margin-top:2px;">${peakTime}</p>
             </div>
-            <div class="bg-[#090e13]/90 border border-white/[0.08] rounded-xl p-2 text-left">
-              <span class="text-[9px] text-[#848c96] font-bold block whitespace-nowrap">🌿 청정 평화지수</span>
-              <p class="text-xs font-black text-emerald-400 mt-0.5 whitespace-nowrap break-keep leading-normal pb-0.5">
-                ${peace}% <span class="text-[10px] text-[#848c96]">(${peace >= 90 ? '갈등 0%' : '정색 주의'})</span>
-              </p>
+            <div style="background:#090e13;border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:8px;">
+              <span style="font-size:9px;color:#848c96;font-weight:700;display:block;">🌿 청정 평화지수</span>
+              <p style="font-size:12px;font-weight:900;color:#34d399;margin-top:2px;">${peace}%</p>
             </div>
           </div>
 
-          <!-- [B] 단톡방 CTI 페르소나 라인업 (손그림 캐릭터 4인) -->
           <div>
-            <div class="flex items-center justify-between mb-1 px-0.5">
-              <span class="text-[9px] font-bold text-[#848c96] uppercase tracking-wider flex items-center gap-1 whitespace-nowrap">
-                <span>👥</span> 단톡방 CTI 페르소나 라인업
-              </span>
-              <span class="text-[9px] text-[#848c96]">${(currentData.members || []).length}명 분석</span>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+              <span style="font-size:9px;font-weight:700;color:#848c96;">👥 단톡방 CTI 페르소나 라인업</span>
+              <span style="font-size:9px;color:#848c96;">${(currentData.members || []).length}명 분석</span>
             </div>
-            <div class="grid grid-cols-2 gap-1.5">
+            <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;">
               ${memberChips}
             </div>
           </div>
 
-          <!-- [C] 핫 토픽 키워드 -->
-          <div class="bg-[#090e13]/90 border border-white/[0.08] rounded-xl p-2">
-            <span class="text-[9px] font-bold text-[#848c96] uppercase tracking-wider flex items-center gap-1 mb-1 whitespace-nowrap">
-              <span>🔥</span> 단톡방 최다 언급 핫토픽
-            </span>
-            <div class="flex flex-wrap gap-1 items-center">
-              ${kwPills || '<span class="text-[10px] text-[#848c96]">#단톡방 #티키타카</span>'}
+          <div style="background:#090e13;border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:8px;">
+            <span style="font-size:9px;font-weight:700;color:#848c96;display:block;margin-bottom:4px;">🔥 단톡방 최다 언급 핫토픽</span>
+            <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;">
+              ${kwPills || '<span style="font-size:10px;color:#848c96;">#단톡방 #티키타카</span>'}
             </div>
           </div>
 
-          <!-- [D] 1:1 최강 영혼의 단짝 -->
           ${topPair ? `
-            <div class="bg-gradient-to-r from-[rgba(139,92,246,0.15)] to-[rgba(245,183,61,0.15)] border border-[rgba(139,92,246,0.3)] rounded-xl p-2 flex items-center justify-between">
-              <div class="flex items-center gap-2 min-w-0">
-                <span class="text-base shrink-0">🏆</span>
-                <div class="min-w-0 text-left">
-                  <div class="flex items-center gap-1 whitespace-nowrap">
-                    <span class="text-[9px] text-[#8b5cf6] font-extrabold uppercase">최강 소울 듀오</span>
-                    <span class="text-[11px] font-black text-white">${topPair.pair[0]} ↔ ${topPair.pair[1]}</span>
-                  </div>
-                  <p class="text-[9px] text-[#848c96] truncate">${topPair.summary || '환상의 티키타카 호흡'}</p>
+            <div style="background:linear-gradient(90deg,rgba(139,92,246,0.16),rgba(245,183,61,0.16));border:1px solid rgba(139,92,246,0.32);border-radius:12px;padding:8px;display:flex;align-items:center;justify-content:space-between;">
+              <div style="display:flex;align-items:center;gap:6px;min-width:0;">
+                <span style="font-size:14px;">🏆</span>
+                <div style="min-width:0;text-align:left;">
+                  <span style="font-size:10px;font-weight:900;color:#ffffff;">${topPair.pair[0]} ↔ ${topPair.pair[1]}</span>
+                  <p style="font-size:9px;color:#94a3b8;">${topPair.summary || '환상의 티키타카 호흡'}</p>
                 </div>
               </div>
-              <span class="text-[11px] font-black text-[#f5b73d] bg-[#f5b73d]/15 px-2 py-0.5 rounded-full shrink-0 border border-[#f5b73d]/30">${topPair.score}점</span>
+              <span style="font-size:11px;font-weight:900;color:#f5b73d;">${topPair.score}점</span>
             </div>
           ` : ''}
-
-          <!-- [E] 단톡방 바이브 한 줄 평 -->
-          <div class="p-2 rounded-xl bg-[#090e13]/80 border border-white/[0.08] text-center">
-            <p class="text-[10px] text-[#f6f8fa] font-medium leading-relaxed italic break-keep">
-              "${currentData.groupVibe || '영혼의 찰떡 단톡방!'}"
-            </p>
-          </div>
         </div>
       `;
     }
@@ -3946,28 +5477,33 @@ async function downloadShareCard() {
   const canvasTarget = document.getElementById("shareCardCanvas");
   if (!canvasTarget) return;
 
-  // 1. 폰트 로딩 완료 보장 (폰트 미로딩으로 인한 텍스트 밀림 방지)
-  if (document.fonts && document.fonts.ready) {
-    try {
-      await document.fonts.ready;
-    } catch (e) {
-      console.warn("Fonts ready check warning:", e);
-    }
-  }
-
-  const currentMember = (currentData && currentData.members && currentData.members[currentCardMemberIndex]) 
-    ? currentData.members[currentCardMemberIndex].name 
-    : "포토카드";
-
-  const prefix = currentCardMode === "personal" ? `[CTI_포토카드]_${currentMember}` : `[CTI_단톡방]_${currentData.roomName || '리포트'}`;
-  const safeTitle = prefix.replace(/[\\/:*?"<>|]/g, "_");
+  showToast("포토카드 이미지를 렌더링하는 중입니다...", "loading");
 
   try {
-    // 2. html2canvas 정밀 캡처 (스크롤 오프셋 0 및 복제 엘리먼트 위치 안정화)
+    // 1. 폰트 로딩 완료 보장 (폰트 미로딩으로 인한 텍스트 밀림 방지)
+    if (document.fonts && document.fonts.ready) {
+      try {
+        await document.fonts.ready;
+      } catch (e) {
+        console.warn("Fonts ready check warning:", e);
+      }
+    }
+
+    const currentMember = (currentData && currentData.members && currentData.members[currentCardMemberIndex]) 
+      ? currentData.members[currentCardMemberIndex].name 
+      : "포토카드";
+
+    const activeMode = typeof selectedAnalysisMode === "string" ? selectedAnalysisMode : "chemistry";
+    const modeTag = activeMode === "romance" ? "연인포토카드" : activeMode === "villain" ? "조별과제포토카드" : "CTI_포토카드";
+    const roomTitle = (currentData && currentData.roomName) ? currentData.roomName : "리포트";
+    const prefix = currentCardMode === "personal" ? `[${modeTag}]_${currentMember}` : `[${modeTag}_종합]_${roomTitle}`;
+    const safeTitle = prefix.replace(/[\\/:*?"<>|]/g, "_");
+
+    // 2. html2canvas 정밀 캡처 (스크롤 오프셋 0 및 복제 엘리먼트 위치/테마 안정화)
     const canvas = await html2canvas(canvasTarget, {
       scale: 2.5,
       useCORS: true,
-      allowTaint: false,
+      allowTaint: true,
       backgroundColor: "#090e13",
       scrollX: 0,
       scrollY: 0,
@@ -3975,13 +5511,32 @@ async function downloadShareCard() {
       windowHeight: document.documentElement.offsetHeight,
       logging: false,
       onclone: (clonedDoc) => {
+        if (clonedDoc.body) {
+          clonedDoc.body.classList.remove("light-mode");
+        }
+        const clonedWrapper = clonedDoc.getElementById("shareCardWrapper");
+        if (clonedWrapper) {
+          clonedWrapper.style.transform = "none";
+          clonedWrapper.style.transition = "none";
+        }
         const clonedCard = clonedDoc.getElementById("shareCardCanvas");
         if (clonedCard) {
           clonedCard.style.margin = "0";
           clonedCard.style.transform = "none";
           clonedCard.style.boxShadow = "none";
+          clonedCard.style.backgroundColor = "#111820";
+          clonedCard.style.color = "#f6f8fa";
           clonedCard.style.fontFamily = "'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif";
           clonedCard.style.letterSpacing = "normal";
+
+          // 로컬 file:// 환경에서 base64가 아닌 이미지로 인한 Tainted Canvas 방지
+          const imgs = clonedCard.querySelectorAll("img");
+          imgs.forEach(imgEl => {
+            const srcAttr = imgEl.getAttribute("src") || "";
+            if (!srcAttr.startsWith("data:") && window.CTI_AVATARS && window.CTI_AVATARS["ELFA"]) {
+              imgEl.src = window.CTI_AVATARS["ELFA"];
+            }
+          });
 
           // 모든 하위 텍스트 요소의 클리핑 방지 및 정렬 보정
           const allEls = clonedCard.querySelectorAll("*");
@@ -4004,27 +5559,33 @@ async function downloadShareCard() {
       const link = document.createElement("a");
       link.download = `${safeTitle}_${currentShareRatio}.png`;
       link.href = dataUrl;
+      document.body.appendChild(link);
       link.click();
+      document.body.removeChild(link);
       triggerConfetti();
+      showToast("포토카드 이미지가 저장되었습니다", "success");
     } catch (taintErr) {
       console.warn("toDataURL fallback triggered:", taintErr);
       canvas.toBlob((blob) => {
         if (!blob) {
-          alert("이미지 생성에 실패했습니다: " + taintErr.message);
+          showToast("이미지 생성에 실패했습니다: " + taintErr.message, "error");
           return;
         }
         const blobUrl = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.download = `${safeTitle}_${currentShareRatio}.png`;
         link.href = blobUrl;
+        document.body.appendChild(link);
         link.click();
+        document.body.removeChild(link);
         setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
         triggerConfetti();
+        showToast("포토카드 이미지가 저장되었습니다", "success");
       }, "image/png");
     }
   } catch (err) {
     console.error("Share card export error:", err);
-    alert("이미지 생성에 실패했습니다: " + err.message);
+    showToast("이미지 생성에 실패했습니다: " + err.message, "error");
   }
 }
 
@@ -4033,22 +5594,27 @@ async function shareOrCopyCard() {
   const canvasTarget = document.getElementById("shareCardCanvas");
   if (!canvasTarget) return;
 
-  if (document.fonts && document.fonts.ready) {
-    try { await document.fonts.ready; } catch (e) {}
-  }
-
-  const currentMember = (currentData && currentData.members && currentData.members[currentCardMemberIndex]) 
-    ? currentData.members[currentCardMemberIndex].name 
-    : "포토카드";
-
-  const prefix = currentCardMode === "personal" ? `[CTI_포토카드]_${currentMember}` : `[CTI_단톡방]_${currentData.roomName || '리포트'}`;
-  const safeTitle = prefix.replace(/[\\/:*?"<>|]/g, "_");
+  showToast("공유용 포토카드를 준비하는 중입니다...", "loading");
 
   try {
+    if (document.fonts && document.fonts.ready) {
+      try { await document.fonts.ready; } catch (e) {}
+    }
+
+    const currentMember = (currentData && currentData.members && currentData.members[currentCardMemberIndex]) 
+      ? currentData.members[currentCardMemberIndex].name 
+      : "포토카드";
+
+    const activeMode = typeof selectedAnalysisMode === "string" ? selectedAnalysisMode : "chemistry";
+    const modeTag = activeMode === "romance" ? "연인포토카드" : activeMode === "villain" ? "조별과제포토카드" : "CTI_포토카드";
+    const roomTitle = (currentData && currentData.roomName) ? currentData.roomName : "리포트";
+    const prefix = currentCardMode === "personal" ? `[${modeTag}]_${currentMember}` : `[${modeTag}_종합]_${roomTitle}`;
+    const safeTitle = prefix.replace(/[\\/:*?"<>|]/g, "_");
+
     const canvas = await html2canvas(canvasTarget, {
       scale: 2.5,
       useCORS: true,
-      allowTaint: false,
+      allowTaint: true,
       backgroundColor: "#090e13",
       scrollX: 0,
       scrollY: 0,
@@ -4056,13 +5622,31 @@ async function shareOrCopyCard() {
       windowHeight: document.documentElement.offsetHeight,
       logging: false,
       onclone: (clonedDoc) => {
+        if (clonedDoc.body) {
+          clonedDoc.body.classList.remove("light-mode");
+        }
+        const clonedWrapper = clonedDoc.getElementById("shareCardWrapper");
+        if (clonedWrapper) {
+          clonedWrapper.style.transform = "none";
+          clonedWrapper.style.transition = "none";
+        }
         const clonedCard = clonedDoc.getElementById("shareCardCanvas");
         if (clonedCard) {
           clonedCard.style.margin = "0";
           clonedCard.style.transform = "none";
           clonedCard.style.boxShadow = "none";
+          clonedCard.style.backgroundColor = "#111820";
+          clonedCard.style.color = "#f6f8fa";
           clonedCard.style.fontFamily = "'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif";
           clonedCard.style.letterSpacing = "normal";
+
+          const imgs = clonedCard.querySelectorAll("img");
+          imgs.forEach(imgEl => {
+            const srcAttr = imgEl.getAttribute("src") || "";
+            if (!srcAttr.startsWith("data:") && window.CTI_AVATARS && window.CTI_AVATARS["ELFA"]) {
+              imgEl.src = window.CTI_AVATARS["ELFA"];
+            }
+          });
 
           // 모든 하위 텍스트 요소의 클리핑 방지 및 정렬 보정
           const allEls = clonedCard.querySelectorAll("*");
@@ -4094,23 +5678,35 @@ async function shareOrCopyCard() {
             text: "카카오톡 CTI 대화 성향 분석 포토카드"
           });
           triggerConfetti();
+          showToast("포토카드 공유가 완료되었습니다", "success");
           return;
         } catch (shareErr) {
           if (shareErr.name === "AbortError") return;
         }
       }
 
-      // 2. 데스크톱 클립보드 API 지원 시 이미지 바이너리 복사 (PC 카카오톡 등에 Ctrl+V 즉시 전송 가능)
+      // 2. 데스크톱 클립보드 API 지원 시 이미지 또는 공유 링크 복사
       if (navigator.clipboard && window.ClipboardItem) {
         try {
           await navigator.clipboard.write([
             new ClipboardItem({ "image/png": blob })
           ]);
-          alert("📸 포토카드 이미지가 클립보드에 복사되었습니다!\n카카오톡이나 메신저 대화창에 바로 붙여넣기(Ctrl+V) 하실 수 있습니다.");
           triggerConfetti();
+          showToast("공유 링크가 복사되었습니다 (클립보드 이미지 붙여넣기 가능)", "success");
           return;
         } catch (clipErr) {
-          console.warn("Clipboard copy failed, fallback to download:", clipErr);
+          console.warn("Clipboard image copy failed, trying text link copy:", clipErr);
+        }
+      }
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        try {
+          await navigator.clipboard.writeText(window.location.href);
+          triggerConfetti();
+          showToast("공유 링크가 복사되었습니다", "success");
+          return;
+        } catch (textErr) {
+          console.warn("Clipboard text copy failed:", textErr);
         }
       }
 

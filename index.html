@@ -190,10 +190,59 @@
       overflow-wrap: break-word;
     }
 
+    /* 🎨 테마별 컬러 토큰 (CSS Variables) */
+    :root {
+      --card-bg: rgba(13, 15, 22, 0.92);
+      --card-sub-bg: rgba(20, 23, 34, 0.88);
+      --card-border: rgba(255, 255, 255, 0.09);
+      --text-primary: #f4f4f6;
+      --text-secondary: #b4bcd0;
+      --text-muted: #a8b0c2;
+    }
+
+    body.light-mode {
+      --card-bg: #ffffff;
+      --card-sub-bg: #f1f5f9;
+      --card-border: rgba(15, 23, 42, 0.12);
+      --text-primary: #0f172a;
+      --text-secondary: #334155;
+      --text-muted: #475569;
+    }
+
+    .cti-themed-card {
+      background: var(--card-bg) !important;
+      border-color: var(--card-border) !important;
+      color: var(--text-primary) !important;
+    }
+
+    .cti-themed-subcard {
+      background: var(--card-sub-bg) !important;
+      border-color: var(--card-border) !important;
+      color: var(--text-primary) !important;
+    }
+
+    /* 🌙 다크 모드 미세 텍스트 명암비(Contrast) WCAG AA(4.5:1+) 상향 */
+    body:not(.light-mode) [class*="text-[#8e929f]"],
+    body:not(.light-mode) [class*="text-[#848c96]"] {
+      color: #aeb6c8 !important;
+    }
+    body:not(.light-mode) .text-pink-200\/80,
+    body:not(.light-mode) .text-pink-300\/80 {
+      color: #fbcfe8 !important;
+    }
+    body:not(.light-mode) .text-purple-300,
+    body:not(.light-mode) .text-purple-400 {
+      color: #e9d5ff !important;
+    }
+    body:not(.light-mode) .text-rose-200\/80,
+    body:not(.light-mode) .text-rose-300 {
+      color: #fecdd3 !important;
+    }
+
     /* ☀️ 화이트 모드 (Light Theme) 전역 완벽 대응 */
     body.light-mode {
       background-color: #f4f6fb !important;
-      color: #0f172a !important;
+      color: var(--text-primary) !important;
     }
     body.light-mode .film-grain-overlay {
       opacity: 0.012 !important;
@@ -208,64 +257,126 @@
     body.light-mode #mainDropZone,
     body.light-mode [class*="bg-[#0"],
     body.light-mode [class*="bg-[#1"],
+    body.light-mode [class*="bg-[#2"],
+    body.light-mode [class*="bg-[#3"],
+    body.light-mode [class*="from-[#0"],
     body.light-mode [class*="from-[#1"],
     body.light-mode [class*="via-[#0"],
-    body.light-mode [class*="via-[#1"] {
-      background: #ffffff !important;
-      border-color: rgba(15, 23, 42, 0.12) !important;
+    body.light-mode [class*="via-[#1"],
+    body.light-mode [class*="to-[#0"],
+    body.light-mode [class*="to-[#1"] {
+      background: var(--card-bg) !important;
+      border-color: var(--card-border) !important;
       box-shadow: 0 10px 30px -8px rgba(15, 23, 42, 0.07) !important;
-      color: #0f172a !important;
+      color: var(--text-primary) !important;
     }
     body.light-mode .theme-sub-card,
-    body.light-mode .theme-warm .theme-sub-card {
-      background: #f1f5f9 !important;
-      border-color: rgba(15, 23, 42, 0.09) !important;
-      color: #0f172a !important;
+    body.light-mode .theme-warm .theme-sub-card,
+    body.light-mode [class*="bg-white/[0.0"] {
+      background: var(--card-sub-bg) !important;
+      border-color: rgba(15, 23, 42, 0.1) !important;
+      color: var(--text-primary) !important;
       box-shadow: none !important;
     }
     body.light-mode [class*="text-[#f4f4f6]"],
     body.light-mode [class*="text-[#f6f8fa]"],
-    body.light-mode .text-white,
     body.light-mode [class*="text-white/9"] {
-      color: #0f172a !important;
+      color: var(--text-primary) !important;
+    }
+    body.light-mode .text-white:not([class*="bg-rose-"]):not([class*="bg-pink-"]):not([class*="bg-emerald-"]):not([class*="bg-indigo-"]):not([class*="bg-purple-"]):not([class*="bg-sky-"]):not([class*="bg-amber-"]) {
+      color: var(--text-primary) !important;
+    }
+    body.light-mode [class*="bg-rose-500"].text-white,
+    body.light-mode [class*="bg-rose-600"].text-white,
+    body.light-mode [class*="bg-pink-500"].text-white,
+    body.light-mode [class*="bg-emerald-500"].text-white,
+    body.light-mode [class*="bg-indigo-500"].text-white {
+      color: #ffffff !important;
     }
     body.light-mode [class*="text-[#d4d7e0]"],
     body.light-mode [class*="text-white/8"],
-    body.light-mode [class*="text-white/7"] {
-      color: #334155 !important;
+    body.light-mode [class*="text-white/7"],
+    body.light-mode .text-rose-100,
+    body.light-mode .text-pink-100,
+    body.light-mode .text-emerald-100,
+    body.light-mode .text-amber-100 {
+      color: var(--text-secondary) !important;
     }
     body.light-mode [class*="text-[#8e929f]"],
-    body.light-mode [class*="text-[#848c96]"] {
-      color: #475569 !important;
+    body.light-mode [class*="text-[#848c96]"],
+    body.light-mode .text-rose-200\/80,
+    body.light-mode .text-pink-200\/80 {
+      color: var(--text-muted) !important;
     }
     body.light-mode [class*="text-[#f5b73d]"] {
       color: #b45309 !important;
     }
+    body.light-mode .text-pink-200,
     body.light-mode .text-pink-300,
     body.light-mode .text-pink-400 {
-      color: #db2777 !important;
+      color: #be185d !important;
     }
+    body.light-mode .text-emerald-200,
     body.light-mode .text-emerald-300,
     body.light-mode .text-emerald-400 {
-      color: #059669 !important;
+      color: #047857 !important;
     }
+    body.light-mode .text-rose-200,
     body.light-mode .text-rose-300,
     body.light-mode .text-rose-400 {
-      color: #e11d48 !important;
+      color: #be123c !important;
     }
+    body.light-mode .text-amber-200,
     body.light-mode .text-amber-300,
     body.light-mode .text-amber-400 {
-      color: #d97706 !important;
+      color: #b45309 !important;
     }
+    body.light-mode .text-sky-200,
     body.light-mode .text-sky-300,
     body.light-mode .text-sky-400 {
-      color: #0284c7 !important;
+      color: #0369a1 !important;
+    }
+    body.light-mode .text-purple-200,
+    body.light-mode .text-purple-300,
+    body.light-mode .text-purple-400 {
+      color: #6d28d9 !important;
     }
     body.light-mode [class*="border-white/"] {
-      border-color: rgba(15, 23, 42, 0.1) !important;
+      border-color: var(--card-border) !important;
     }
     body.light-mode [class*="divide-white/"] > :not([hidden]) ~ :not([hidden]) {
-      border-color: rgba(15, 23, 42, 0.1) !important;
+      border-color: var(--card-border) !important;
+    }
+    body.light-mode [class*="bg-[#080a0f]"],
+    body.light-mode [class*="bg-[#090b10]"],
+    body.light-mode [class*="bg-[#0b0d13]"],
+    body.light-mode [class*="bg-[#100c12]"],
+    body.light-mode [class*="bg-[#181a24]"],
+    body.light-mode [class*="bg-[#1f131b]"] {
+      background-color: var(--card-sub-bg) !important;
+      border-color: var(--card-border) !important;
+    }
+
+    /* 📸 포토카드(#shareCardCanvas) 라이트 모드 CSS 간섭 완벽 차단 & 저장 이미지 100% 일치 보장 */
+    #shareCardCanvas {
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif !important;
+      -webkit-font-smoothing: antialiased;
+      box-sizing: border-box !important;
+    }
+    #shareCardCanvas * {
+      box-sizing: border-box !important;
+      word-break: keep-all !important;
+    }
+
+    @keyframes villainArenaShake {
+      0%, 100% { transform: translate(0, 0) rotate(0deg); }
+      20% { transform: translate(-8px, 5px) rotate(-1.2deg); }
+      40% { transform: translate(8px, -6px) rotate(1.2deg); }
+      60% { transform: translate(-6px, -4px) rotate(-0.8deg); }
+      80% { transform: translate(6px, 4px) rotate(0.8deg); }
+    }
+    .villain-arena-shake {
+      animation: villainArenaShake 0.24s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
     }
   </style>
 </head>
@@ -292,11 +403,11 @@
       </button>
     </div>
 
-    <!-- 메인 히어로 섹션 (한눈에 들어오는 짧은 직관 카피) -->
-    <section class="text-center space-y-4 max-w-3xl mx-auto relative z-10 stagger-reveal">
-      <h2 class="text-3xl sm:text-5xl lg:text-[52px] font-black text-[#f4f4f6] tracking-tight break-keep leading-[1.18] flex flex-col gap-2">
-        <span id="landingHeroTitleLine1">우리 단톡방, <span class="bg-gradient-to-r from-[#fde68a] via-[#f5b73d] to-[#f59e0b] bg-clip-text text-transparent">누가 제일 잘 통할까?</span></span>
-        <span id="landingHeroTitleLine2" class="text-xl sm:text-3xl lg:text-[32px] font-bold text-[#d4d7e0]">카톡으로 보는 찐친 궁합 &amp; 16종 캐릭터</span>
+    <!-- 메인 히어로 섹션 (한 줄에 깔끔하게 들어오도록 max-w-5xl 확장 및 줄바꿈 방지) -->
+    <section class="text-center space-y-4 max-w-5xl mx-auto relative z-10 stagger-reveal px-2">
+      <h2 class="text-2xl sm:text-4xl lg:text-[45px] font-black text-[#f4f4f6] tracking-tight break-keep leading-[1.22] flex flex-col items-center gap-2">
+        <span id="landingHeroTitleLine1" class="sm:whitespace-nowrap">우리 단톡방, <span class="bg-gradient-to-r from-[#fde68a] via-[#f5b73d] to-[#f59e0b] bg-clip-text text-transparent">누가 제일 잘 통할까?</span></span>
+        <span id="landingHeroTitleLine2" class="text-base sm:text-2xl lg:text-[28px] font-bold text-[#d4d7e0] sm:whitespace-nowrap">카톡으로 보는 찐친 궁합 &amp; 16종 캐릭터</span>
       </h2>
       <p id="landingHeroDesc" class="text-sm sm:text-base text-[#8e929f] leading-relaxed max-w-xl mx-auto break-keep pt-1 font-medium">
         원하는 <strong class="text-[#f4f4f6] font-bold">분석 모드</strong>를 고르고 <strong class="text-[#f5b73d] font-bold">카톡 대화 파일(.txt)</strong>만 올리면 3초 만에 결과가 나옵니다.
@@ -313,7 +424,7 @@
             <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-[#f5b73d] text-[#060608] whitespace-nowrap">STEP 1</span>
             <span class="text-sm sm:text-base font-black text-[#f4f4f6]">어떤 대화를 분석할까요?</span>
           </div>
-          <span id="selectedModeAcademicCite" class="text-[11px] font-bold text-[#8e929f]">※ 한 번 분석한 파일은 다른 분석 모드로 전환할 수 없습니다</span>
+          <span id="selectedModeAcademicCite" class="text-[11px] font-bold text-[#a8b0c2]">※ 선택한 분석 모드 전용으로 정밀 분석됩니다 (모드 전환 시 재분석)</span>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-3" id="preAnalysisModeSelector">
@@ -349,6 +460,35 @@
             </div>
             <span class="mode-check-badge text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/[0.06] text-[#8e929f] shrink-0">선택</span>
           </button>
+        </div>
+      </div>
+
+      <!-- 파일 업로드 예외 처리 에러 배너 (기본 hidden) -->
+      <div id="uploadErrorBanner" class="hidden rounded-3xl p-5 sm:p-6 bg-rose-500/12 border-2 border-rose-500/45 text-left space-y-4 shadow-[0_15px_40px_rgba(244,63,94,0.18)]">
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex items-start gap-3">
+            <div class="w-10 h-10 rounded-2xl bg-rose-500/20 border border-rose-500/40 text-rose-400 flex items-center justify-center text-lg shrink-0 mt-0.5">
+              <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <div class="space-y-1">
+              <h4 id="uploadErrorTitle" class="text-sm sm:text-base font-black text-rose-300">카카오톡 대화 내보내기 파일을 확인해 주세요</h4>
+              <p id="uploadErrorMessage" class="text-xs sm:text-sm text-[#d4d7e0] leading-relaxed break-keep">업로드하신 파일에서 카카오톡 대화 형식을 찾을 수 없습니다.</p>
+            </div>
+          </div>
+          <button type="button" onclick="hideUploadError()" class="w-8 h-8 rounded-full bg-white/[0.06] hover:bg-white/[0.12] text-[#a8b0c2] flex items-center justify-center shrink-0 cursor-pointer">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+        <div class="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-rose-500/25">
+          <span class="text-xs text-rose-200/90 font-semibold">💡 카카오톡에서 내보낸 원본 텍스트(.txt) 파일이 필요합니다.</span>
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" onclick="openGuideModal('mobile')" class="px-3.5 py-2 rounded-xl bg-[#12141a] hover:bg-[#191c24] text-[#f4f4f6] hover:text-[#f5b73d] text-xs font-black border border-white/[0.12] transition flex items-center gap-1.5 cursor-pointer">
+              <span>📱 모바일 내보내기 방법</span>
+            </button>
+            <button type="button" onclick="openGuideModal('pc')" class="px-3.5 py-2 rounded-xl bg-[#12141a] hover:bg-[#191c24] text-[#f4f4f6] hover:text-[#38bdf8] text-xs font-black border border-white/[0.12] transition flex items-center gap-1.5 cursor-pointer">
+              <span>💻 PC 내보내기 방법</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -547,7 +687,7 @@
   <!-- ==================== 2. 분석 결과 리포트 뷰 ==================== -->
   <main id="reportView" class="relative z-10 max-w-6xl mx-auto px-4 py-5 space-y-6 w-full flex-grow hidden theme-warm">
 
-    <!-- 리포트 상단 인라인 헤더 -->
+    <!-- 리포트 최상단 글로벌 바: 테마 전환 / 이름 가리기 / 새 파일 열기(다른 모드 분석) 중심 -->
     <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-[#0c0d11]/85 backdrop-blur-xl border border-white/[0.08] shadow-[0_8px_30px_rgba(0,0,0,0.4)]">
       <div class="flex items-center gap-2.5 cursor-pointer group" onclick="showLandingView()">
         <div id="reportHeaderIconBox" class="w-8 h-8 rounded-xl bg-[#f5b73d]/15 border border-[#f5b73d]/30 flex items-center justify-center text-sm text-[#f5b73d] group-hover:bg-[#f5b73d] group-hover:text-[#060608] transition-all">
@@ -562,14 +702,39 @@
         <button type="button" onclick="toggleColorMode()" id="btnToggleColorModeReport" class="px-3.5 py-1.5 bg-[#12141a] hover:bg-[#191c24] text-[#f4f4f6] text-xs font-bold rounded-full border border-white/[0.08] hover:border-[#f5b73d]/40 transition flex items-center gap-1.5 cursor-pointer">
           <i id="colorModeIconReport" class="fa-solid fa-sun text-[#f5b73d]"></i> <span id="colorModeTextReport">화이트 모드</span>
         </button>
-        <button onclick="toggleAnonymize()" id="btnAnonymize" class="px-3.5 py-1.5 bg-[#12141a] hover:bg-[#191c24] text-[#f4f4f6] text-xs font-semibold rounded-full border border-white/[0.08] hover:border-white/[0.18] transition flex items-center gap-1.5">
-          <i class="fa-solid fa-user-secret text-[#8e929f]"></i> <span id="anonymizeText">가명 모드</span>
+        <button type="button" onclick="toggleAnonymize()" id="btnAnonymize" class="px-3.5 py-1.5 bg-[#12141a] hover:bg-[#191c24] text-[#f4f4f6] text-xs font-bold rounded-full border border-white/[0.08] hover:border-white/[0.18] transition flex items-center gap-1.5 cursor-pointer">
+          <span id="anonymizeText">🏛️ 이름 가리기 모드</span>
         </button>
-        <button id="btnSharePhotocard" onclick="openShareModal()" class="px-4 py-1.5 bg-gradient-to-r from-[#f5b73d] to-[#e5a229] hover:brightness-105 text-[#060608] text-xs font-black rounded-full transition flex items-center gap-1.5 shadow-[0_4px_16px_rgba(245,183,61,0.28)]">
+        <button type="button" onclick="showLandingView()" class="px-3.5 py-1.5 bg-[#12141a] hover:bg-[#191c24] text-[#f4f4f6] text-xs font-semibold rounded-full border border-white/[0.08] hover:border-white/[0.18] transition flex items-center gap-1.5 cursor-pointer">
+          <i class="fa-solid fa-folder-open text-[#a8b0c2]"></i> <span>새 파일 열기 / 모드 변경</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 리포트 공통 액션 영역: 현재 모드 배지 + '나' 지정 + 📸 화면 캡처 & 포토카드 공유 통합 -->
+    <div id="reportUnifiedActionBar" class="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 pb-4 border-b border-white/[0.07]">
+      <div class="flex flex-wrap items-center gap-3">
+        <div id="lockedReportModeBanner" class="px-4 py-2 rounded-full text-xs sm:text-sm font-black flex items-center gap-2 bg-[#f5b73d]/15 text-[#f5b73d] border border-[#f5b73d]/40">
+          <span>🔥</span> <span>현재 분석 모드: 단톡방 전체 케미</span>
+        </div>
+
+        <!-- 슬림 '나' 프로필 설정 필(Pill) 바 -->
+        <div id="myProfileBanner" class="flex flex-wrap items-center gap-2">
+          <div class="flex items-center gap-1.5">
+            <span id="myProfileStatusBadge" class="text-[10px] px-2.5 py-0.5 rounded-full bg-[#f5b73d]/15 border border-[#f5b73d]/30 text-[#f5b73d] font-bold whitespace-nowrap">나 지정</span>
+            <span id="myProfileTitle" class="text-xs font-bold text-[#d4d7e0]">이 방에서 '나'는 누구인가요?</span>
+          </div>
+          <div id="myProfileChipsContainer" class="flex flex-wrap items-center gap-1.5"></div>
+        </div>
+      </div>
+
+      <!-- 통합된 리포트 캡처 & 포토카드 공유 액션 버튼 -->
+      <div class="flex items-center gap-2 shrink-0">
+        <button type="button" id="btnCaptureReport" onclick="captureCurrentTab()" class="px-3.5 py-2 bg-[#12141a] hover:bg-[#191c24] text-[#f4f4f6] text-xs font-bold rounded-full border border-white/[0.1] hover:border-[#f5b73d]/40 transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer shadow-sm">
+          <span>📸 화면 캡처</span>
+        </button>
+        <button type="button" id="btnSharePhotocard" onclick="openShareModal()" class="px-4 py-2 bg-gradient-to-r from-[#f5b73d] to-[#e5a229] hover:brightness-105 text-[#060608] text-xs font-black rounded-full transition flex items-center gap-1.5 shadow-[0_4px_16px_rgba(245,183,61,0.28)] whitespace-nowrap cursor-pointer">
           <i class="fa-solid fa-sparkles"></i> <span>포토카드 공유</span>
-        </button>
-        <button onclick="showLandingView()" class="px-3.5 py-1.5 bg-[#12141a] hover:bg-[#191c24] text-[#f4f4f6] text-xs font-semibold rounded-full border border-white/[0.08] hover:border-white/[0.18] transition flex items-center gap-1.5">
-          <i class="fa-solid fa-arrow-rotate-left text-[#8e929f]"></i> 다른 모드로 새 파일 열기
         </button>
       </div>
     </div>
@@ -577,26 +742,6 @@
     <!-- [A] 리포트 홈 대시보드 -->
     <div id="reportHomeDashboard" class="space-y-8 py-2">
       <section id="dashboardOverviewSection" class="space-y-7">
-
-        <!-- 상단 통합 컨트롤 바: 현재 고정된 분석 모드 표시 (타 모드 전환 잠금) + 슬림 '나' 지정 필 바 -->
-        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 pb-4 border-b border-white/[0.07]">
-          <!-- 현재 분석 모드 고정 배지 -->
-          <div class="flex flex-wrap items-center gap-2">
-            <div id="lockedReportModeBanner" class="px-4 py-2 rounded-full text-xs sm:text-sm font-black flex items-center gap-2 bg-[#f5b73d]/15 text-[#f5b73d] border border-[#f5b73d]/40">
-              <span>🔥</span> <span>현재 분석 모드: 단톡방 전체 케미</span>
-            </div>
-            <span class="text-[11px] text-[#8e929f] font-medium">※ 다른 모드로 분석하려면 새 파일을 열어주세요</span>
-          </div>
-
-          <!-- 슬림 '나' 프로필 설정 필(Pill) 바 -->
-          <div id="myProfileBanner" class="flex flex-wrap items-center gap-2.5">
-            <div class="flex items-center gap-2">
-              <span id="myProfileStatusBadge" class="text-[10px] px-2.5 py-0.5 rounded-full bg-[#f5b73d]/15 border border-[#f5b73d]/30 text-[#f5b73d] font-bold whitespace-nowrap">나 지정</span>
-              <span id="myProfileTitle" class="text-xs font-bold text-[#d4d7e0]">이 방에서 '나'는 누구인가요?</span>
-            </div>
-            <div id="myProfileChipsContainer" class="flex flex-wrap items-center gap-1.5"></div>
-          </div>
-        </div>
 
         <!-- [핵심] 선택한 모드에 따라 완전히 다른 비주얼 아키텍처가 렌더링되는 전용 캔버스 -->
         <div id="modeDedicatedViewContainer" class="space-y-8"></div>
@@ -711,10 +856,10 @@
 
     <!-- [B] 세부 내용 페이지 컨테이너 (상단 플로팅 세그먼트 탭 독 포함) -->
     <div id="reportDetailSection" class="space-y-6 hidden">
-      <!-- 상세 뷰 전용 상단 툴바 (홈 복귀 & 5대 탭 즉시 전환 독 & 캡처/포토카드) -->
+      <!-- 상세 뷰 전용 상단 툴바 (홈 복귀 & 5대 탭 즉시 전환 독) -->
       <div class="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 p-2.5 sm:p-3 rounded-[24px] bg-[#0c0d11]/90 backdrop-blur-xl border border-white/[0.08] sticky top-16 z-30 shadow-[0_12px_32px_rgba(0,0,0,0.5)]">
         <div class="flex items-center justify-between lg:justify-start gap-2 shrink-0">
-          <button onclick="returnToReportHome()" class="px-3.5 py-2 rounded-full bg-[#12141a] hover:bg-[#191c24] text-[#f4f4f6] hover:text-[#f5b73d] text-xs font-bold border border-white/[0.08] hover:border-[#f5b73d]/35 transition flex items-center gap-2 shadow-sm whitespace-nowrap shrink-0">
+          <button onclick="returnToReportHome()" class="px-3.5 py-2 rounded-full bg-[#12141a] hover:bg-[#191c24] text-[#f4f4f6] hover:text-[#f5b73d] text-xs font-bold border border-white/[0.08] hover:border-[#f5b73d]/35 transition flex items-center gap-2 shadow-sm whitespace-nowrap shrink-0 cursor-pointer">
             <i class="fa-solid fa-arrow-left"></i>
             <span>대시보드 홈</span>
           </button>
@@ -723,7 +868,7 @@
           </span>
         </div>
 
-        <!-- 중앙: 상세 탭 간 즉시 이동 세그먼트 독 -->
+        <!-- 중앙/우측: 상세 탭 간 즉시 이동 세그먼트 독 -->
         <div id="detailTabNav" class="flex items-center gap-1 overflow-x-auto no-scrollbar bg-[#060608]/90 p-1 rounded-full border border-white/[0.07]">
           <button type="button" data-tab="tabCharacters" onclick="openReportDetail('tabCharacters')" class="detail-tab-btn px-3.5 py-1.5 rounded-full text-xs font-bold transition whitespace-nowrap flex items-center gap-1.5 text-[#8e929f] hover:text-[#f4f4f6]">
             <i class="fa-solid fa-address-card text-[11px]"></i> <span>팩폭 카드</span>
@@ -739,15 +884,6 @@
           </button>
           <button type="button" data-tab="tabEncyclopedia" onclick="openReportDetail('tabEncyclopedia')" class="detail-tab-btn px-3.5 py-1.5 rounded-full text-xs font-bold transition whitespace-nowrap flex items-center gap-1.5 text-[#8e929f] hover:text-[#f4f4f6]">
             <i class="fa-solid fa-book-open text-[11px]"></i> <span>CTI 도감</span>
-          </button>
-        </div>
-
-        <div class="hidden sm:flex items-center justify-end gap-2 shrink-0">
-          <button onclick="captureCurrentTab()" class="px-3.5 py-1.5 bg-[#12141a] hover:bg-[#191c24] text-[#f4f4f6] text-xs font-semibold rounded-full border border-white/[0.08] transition flex items-center gap-1.5 whitespace-nowrap shrink-0">
-            <i class="fa-solid fa-camera text-[#8e929f]"></i> 화면 캡처
-          </button>
-          <button onclick="openShareModal()" class="px-3.5 py-1.5 bg-gradient-to-r from-[#f5b73d] to-[#e5a229] hover:brightness-105 text-[#060608] text-xs font-black rounded-full transition flex items-center gap-1.5 shadow-sm whitespace-nowrap shrink-0">
-            <i class="fa-solid fa-sparkles"></i> <span>포토카드</span>
           </button>
         </div>
       </div>
@@ -1195,14 +1331,14 @@
       <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-white/[0.08]">
         <p class="text-[11px] text-[#8e929f] whitespace-nowrap hidden sm:block">💡 인스타그램 스토리에 캡처/저장해 올려보세요!</p>
         <div class="flex flex-wrap items-center justify-end gap-2 shrink-0 ml-auto w-full sm:w-auto">
-          <button onclick="closeShareModal()" class="px-4 py-2.5 bg-[#12141a] hover:bg-[#191c24] text-[#f4f4f6] text-xs font-semibold rounded-full transition border border-white/[0.08] whitespace-nowrap shrink-0">
+          <button onclick="closeShareModal()" class="px-4 py-2.5 bg-[#12141a] hover:bg-[#191c24] text-[#f4f4f6] text-xs font-semibold rounded-full transition border border-white/[0.08] whitespace-nowrap shrink-0 cursor-pointer">
             닫기
           </button>
-          <button onclick="shareOrCopyCard()" class="px-4 py-2.5 bg-[#12141a] hover:bg-[#191c24] text-[#f4f4f6] text-xs font-bold rounded-full transition border border-white/[0.08] flex items-center gap-1.5 whitespace-nowrap shrink-0">
-            <i class="fa-solid fa-share-nodes text-[#f5b73d]"></i> <span>공유하기</span>
+          <button id="btnShareOrCopyCard" onclick="shareOrCopyCard()" class="px-4 py-2.5 bg-[#12141a] hover:bg-[#191c24] text-[#f4f4f6] text-xs font-bold rounded-full transition border border-white/[0.08] flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer">
+            <span>🔗 공유하기</span>
           </button>
-          <button onclick="downloadShareCard()" class="px-5 py-2.5 bg-gradient-to-r from-[#f5b73d] to-[#e5a229] hover:brightness-105 text-[#060608] text-xs font-black rounded-full transition flex items-center gap-2 shadow-[0_6px_20px_rgba(245,183,61,0.3)] whitespace-nowrap shrink-0">
-            <i class="fa-solid fa-download"></i> <span>포토카드 이미지 저장</span>
+          <button id="btnDownloadShareCard" onclick="downloadShareCard()" class="px-5 py-2.5 bg-gradient-to-r from-[#f5b73d] to-[#e5a229] hover:brightness-105 text-[#060608] text-xs font-black rounded-full transition flex items-center gap-2 shadow-[0_6px_20px_rgba(245,183,61,0.3)] whitespace-nowrap shrink-0 cursor-pointer">
+            <span>📥 포토카드 이미지 저장</span>
           </button>
         </div>
       </div>
@@ -1272,6 +1408,9 @@
     </div>
   </div>
 
+  <!-- 글로벌 토스트(Toast) 알림 컨테이너 -->
+  <div id="toastContainer" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] flex flex-col items-center gap-2 pointer-events-none"></div>
+
   <!-- 푸터 -->
   <footer class="relative z-10 bg-[#060608] py-14 text-center text-xs text-[#8e929f] border-t border-white/[0.06] space-y-3">
     <div class="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
@@ -1282,8 +1421,8 @@
       </div>
       <p class="text-[#8e929f]">재미와 유대감을 위한 엔터테인먼트 도구입니다.</p>
     </div>
-    <div class="max-w-6xl mx-auto px-4 pt-3 border-t border-white/[0.04] text-[11px] text-[#8e929f]/80 break-keep">
-      ※ 본 분석 결과는 대화 참여자들의 말투 유사도, 답장 시간 간격, 선톡 빈도 및 집단 상호작용 패턴에 관한 커뮤니케이션·사회심리학 연구에 근거하여 산출되었습니다.
+    <div class="max-w-6xl mx-auto px-4 pt-3 border-t border-white/[0.04] text-[11px] text-[#8e929f]/90 break-keep">
+      ※ 본 리포트는 대화 참여자들의 발화 빈도, 답장 시간 간격, 어휘 유사도(언어적 스타일 매칭) 등 정량적 상호작용 지표를 바탕으로 재구성한 엔터테인먼트 분석 결과입니다.
     </div>
   </footer>
 
