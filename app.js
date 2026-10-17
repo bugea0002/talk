@@ -92,6 +92,12 @@ function buildDisplayDataFromCache(masked = isNameMasked) {
       if (Array.isArray(m.sampleQuotes)) {
         m.sampleQuotes = m.sampleQuotes.map((q) => maskNamesInText(q, true));
       }
+      if (Array.isArray(m.quotes)) {
+        m.quotes = m.quotes.map((q) => maskNamesInText(q, true));
+      }
+      if (Array.isArray(m.signatures)) {
+        m.signatures = m.signatures.map((s) => maskNamesInText(s, true));
+      }
     });
   }
 
@@ -102,6 +108,7 @@ function buildDisplayDataFromCache(masked = isNameMasked) {
       }
       if (p.summary) p.summary = maskNamesInText(p.summary, true);
       if (p.reason) p.reason = maskNamesInText(p.reason, true);
+      if (p.details) p.details = maskNamesInText(p.details, true);
     });
   }
 
@@ -116,10 +123,14 @@ function buildDisplayDataFromCache(masked = isNameMasked) {
   if (Array.isArray(clone.romanceHighlights)) {
     clone.romanceHighlights.forEach((h) => {
       if (h.title) h.title = maskNamesInText(h.title, true);
+      if (h.stage) h.stage = maskNamesInText(h.stage, true);
       if (h.aiComment) h.aiComment = maskNamesInText(h.aiComment, true);
+      if (h.academicNote) h.academicNote = maskNamesInText(h.academicNote, true);
+      if (h.commentary) h.commentary = maskNamesInText(h.commentary, true);
       if (Array.isArray(h.messages)) {
         h.messages.forEach((msg) => {
           if (msg.speaker) msg.speaker = mapSingleName(msg.speaker);
+          if (msg.sender) msg.sender = mapSingleName(msg.sender);
           if (msg.text) msg.text = maskNamesInText(msg.text, true);
         });
       }
@@ -131,9 +142,11 @@ function buildDisplayDataFromCache(masked = isNameMasked) {
       if (ev.suspect) ev.suspect = mapSingleName(ev.suspect);
       if (ev.title) ev.title = maskNamesInText(ev.title, true);
       if (ev.verdict) ev.verdict = maskNamesInText(ev.verdict, true);
+      if (ev.academicNote) ev.academicNote = maskNamesInText(ev.academicNote, true);
       if (Array.isArray(ev.messages)) {
         ev.messages.forEach((msg) => {
           if (msg.speaker) msg.speaker = mapSingleName(msg.speaker);
+          if (msg.sender) msg.sender = mapSingleName(msg.sender);
           if (msg.text) msg.text = maskNamesInText(msg.text, true);
         });
       }
@@ -164,12 +177,31 @@ function buildDisplayDataFromCache(masked = isNameMasked) {
           if (sm[key].secretWish) sm[key].secretWish = maskNamesInText(sm[key].secretWish, true);
         }
       });
+      if (Array.isArray(sm.hiddenHearts)) {
+        sm.hiddenHearts.forEach((hh) => {
+          if (hh.name) hh.name = mapSingleName(hh.name);
+          if (hh.surfaceStyle) hh.surfaceStyle = maskNamesInText(hh.surfaceStyle, true);
+          if (hh.innerTruth) hh.innerTruth = maskNamesInText(hh.innerTruth, true);
+          if (hh.secretFear) hh.secretFear = maskNamesInText(hh.secretFear, true);
+          if (hh.loveTrigger) hh.loveTrigger = maskNamesInText(hh.loveTrigger, true);
+        });
+      }
       if (Array.isArray(sm.unspokenQuestions)) {
         sm.unspokenQuestions.forEach((uq) => {
           if (uq.from) uq.from = mapSingleName(uq.from);
           if (uq.to) uq.to = mapSingleName(uq.to);
           if (uq.q) uq.q = maskNamesInText(uq.q, true);
           if (uq.a) uq.a = maskNamesInText(uq.a, true);
+          if (uq.verdict) uq.verdict = maskNamesInText(uq.verdict, true);
+          if (uq.detail) uq.detail = maskNamesInText(uq.detail, true);
+          if (uq.factBadge) uq.factBadge = maskNamesInText(uq.factBadge, true);
+        });
+      }
+      if (Array.isArray(sm.loveCheatKeys)) {
+        sm.loveCheatKeys.forEach((ck) => {
+          if (ck.target) ck.target = mapSingleName(ck.target);
+          if (ck.magicLine) ck.magicLine = maskNamesInText(ck.magicLine, true);
+          if (ck.tip) ck.tip = maskNamesInText(ck.tip, true);
         });
       }
     }
@@ -547,7 +579,9 @@ function loadSampleDemo(event) {
 function switchReportMode(mode) {
   if (!mode || !currentData) return;
   selectedAnalysisMode = mode;
-  selectAnalysisMode(mode);
+  if (typeof selectPreAnalysisMode === 'function') {
+    selectPreAnalysisMode(mode);
+  }
 
   if (isSampleMode) {
     const targetSample = getSampleDataByMode(mode);
@@ -1208,6 +1242,19 @@ function selectPreAnalysisMode(mode) {
   const dzIcon = document.getElementById("dropZoneMainIcon");
   if (dzIcon) dzIcon.className = meta.iconClass;
 
+  const dzIconBox = document.getElementById("dropZoneIconBox");
+  if (dzIconBox) {
+    dzIconBox.classList.remove("mode-chemistry", "mode-romance", "mode-villain");
+    dzIconBox.classList.add(`mode-${mode}`);
+    if (mode === "romance") {
+      dzIconBox.className = "mode-romance relative z-10 w-20 h-20 sm:w-24 sm:h-24 rounded-[26px] bg-gradient-to-b from-[#2a1320] to-[#160c14] border border-pink-500/35 text-pink-400 flex items-center justify-center text-3xl sm:text-4xl shadow-[0_12px_30px_rgba(0,0,0,0.6),inset_0_1px_0_0_rgba(255,255,255,0.15)] group-hover:scale-105 group-hover:text-[#060608] group-hover:from-pink-400 group-hover:to-rose-400 transition-all duration-300 shrink-0";
+    } else if (mode === "villain") {
+      dzIconBox.className = "mode-villain relative z-10 w-20 h-20 sm:w-24 sm:h-24 rounded-[26px] bg-gradient-to-b from-[#10241e] to-[#0c1613] border border-emerald-500/35 text-emerald-400 flex items-center justify-center text-3xl sm:text-4xl shadow-[0_12px_30px_rgba(0,0,0,0.6),inset_0_1px_0_0_rgba(255,255,255,0.15)] group-hover:scale-105 group-hover:text-[#060608] group-hover:from-emerald-400 group-hover:to-teal-400 transition-all duration-300 shrink-0";
+    } else {
+      dzIconBox.className = "mode-chemistry relative z-10 w-20 h-20 sm:w-24 sm:h-24 rounded-[26px] bg-gradient-to-b from-[#1e212d] to-[#11131a] border border-white/[0.12] text-[#f5b73d] flex items-center justify-center text-3xl sm:text-4xl shadow-[0_12px_30px_rgba(0,0,0,0.6),inset_0_1px_0_0_rgba(255,255,255,0.15)] group-hover:scale-105 group-hover:text-[#060608] group-hover:from-[#f5b73d] group-hover:to-[#e09f24] transition-all duration-300 shrink-0";
+    }
+  }
+
   updateLandingPreviewDock(mode);
 }
 
@@ -1310,6 +1357,10 @@ function renderModeDedicatedDashboard() {
         <span class="text-[#a8b0c2] text-[11px] hidden sm:inline">다른 분석 모드로 보려면 우측 상단 [새 파일 열기 / 모드 변경]에서 다시 분석해 주세요</span>
       `;
     }
+    const footerTitleRomance = document.getElementById("reportFooterTitleText");
+    if (footerTitleRomance) {
+      footerTitleRomance.textContent = "1:1 썸·연인 애정도 & 속마음 리포트";
+    }
     renderRomanceModeUI(container);
   } else if (activeMode === "villain") {
     if (lineupSection) lineupSection.classList.add("hidden");
@@ -1333,6 +1384,10 @@ function renderModeDedicatedDashboard() {
         <span class="text-[#a8b0c2] text-[11px] hidden sm:inline">다른 분석 모드로 보려면 우측 상단 [새 파일 열기 / 모드 변경]에서 다시 분석해 주세요</span>
       `;
     }
+    const footerTitleVillain = document.getElementById("reportFooterTitleText");
+    if (footerTitleVillain) {
+      footerTitleVillain.textContent = "조별과제 기여도 & 빌런 탐지 리포트";
+    }
     renderVillainModeUI(container);
   } else {
     if (lineupSection) lineupSection.classList.remove("hidden");
@@ -1355,6 +1410,10 @@ function renderModeDedicatedDashboard() {
         </span>
         <span class="text-[#a8b0c2] text-[11px] hidden sm:inline">다른 분석 모드로 보려면 우측 상단 [새 파일 열기 / 모드 변경]에서 다시 분석해 주세요</span>
       `;
+    }
+    const footerTitleChemistry = document.getElementById("reportFooterTitleText");
+    if (footerTitleChemistry) {
+      footerTitleChemistry.textContent = "단톡방 케미 & 성향 분석 리포트";
     }
     renderChemistryModeUI(container);
   }
@@ -1599,9 +1658,9 @@ function renderRomanceModeUI(container) {
 
   let romanceVerdict = "";
   if (investDiff <= 6) {
-    romanceVerdict = `두 사람의 마음 표현 비율이 <strong>${totalInvestA}% 대 ${totalInvestB}%</strong>로 거의 똑같습니다! 누가 한 명만 애타는 관계가 아니라 서로 연락 빈도와 답장 속도가 찰떡같이 맞물리는 이상적인 커플·쌍방 호감입니다.`;
+    romanceVerdict = `두 사람의 호감과 배려가 균형 있게 맞물리는 가장 이상적인 쌍방 케미입니다.`;
   } else {
-    romanceVerdict = `대화 기록을 보면 <strong>'${moreInLove.name}'</strong>님의 애정 표현 비중이 <strong>${Math.max(totalInvestA, totalInvestB)}%</strong>로 <strong>'${lessInLove.name}'</strong>님보다 <strong>${investDiff}%p 더 높습니다</strong>. 먼저 말을 걸거나 질문을 던지며 대화를 다정하게 이끌어가는 쪽은 '${moreInLove.name}'님입니다.`;
+    romanceVerdict = `'${moreInLove.name}'님이 적극적으로 다가가고, '${lessInLove.name}'님이 안정적으로 화답하며 서로의 신뢰를 다져가고 있습니다.`;
   }
 
   // 3인 이상 톡방일 때만 비교 대상 선택 드롭다운 표시
@@ -1611,21 +1670,22 @@ function renderRomanceModeUI(container) {
 
   const topHeaderBarHtml = isStrictDyad
     ? `
-      <div class="flex flex-wrap items-center justify-between gap-3 px-6 py-3.5 rounded-full bg-gradient-to-r from-pink-500/15 via-[#15111e] to-sky-500/15 border border-pink-400/30">
-        <div class="flex items-center gap-2.5 text-xs sm:text-sm font-black text-pink-200">
-          <span class="w-2.5 h-2.5 rounded-full bg-pink-400 animate-ping"></span>
-          <span>1:1 썸·연인 애정도 &amp; 속마음 리포트</span>
+      <div class="flex flex-wrap items-center justify-between gap-3 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-pink-500/10 via-[#15111e] to-sky-500/10 border border-pink-400/20 text-xs sm:text-sm">
+        <div class="flex items-center gap-2">
+          <span class="px-2.5 py-1 rounded-full text-xs font-black bg-pink-400/20 text-pink-300 border border-pink-400/30 flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-pink-400"></span> 1:1 밀착 분석 대상
+          </span>
+          <span class="text-sm font-black text-white">${mA.name} <span class="text-pink-400">♥</span> ${mB.name}</span>
         </div>
-        <div class="flex items-center gap-3 text-sm">
-          <span class="text-pink-300 font-black">${mA.name}</span>
-          <span class="text-pink-400">♥</span>
-          <span class="text-sky-300 font-black">${mB.name}</span>
-          <span class="text-xs text-[#8e929f]">| 총 ${(currentData.totalMessages || 0).toLocaleString()}건 대화</span>
+        <div class="flex items-center gap-2 text-xs text-[#8e929f]">
+          <span class="px-2 py-0.5 rounded-md bg-white/[0.04] text-[#d4d7e0] font-semibold">총 ${(currentData.totalMessages || 0).toLocaleString()}건 대화</span>
+          <span class="hidden sm:inline">•</span>
+          <span class="hidden sm:inline">${currentData.dateRange || "전체 대화"}</span>
         </div>
       </div>
     `
     : `
-      <div class="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 rounded-full bg-gradient-to-r from-pink-500/12 via-[#13111c] to-sky-500/12 border border-pink-400/25">
+      <div class="flex flex-wrap items-center justify-between gap-3 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-pink-500/10 via-[#13111c] to-sky-500/10 border border-pink-400/20">
         <div class="flex items-center gap-2 text-xs font-bold text-pink-300">
           <i class="fa-solid fa-heart-circle-check"></i>
           <span>비교할 두 사람을 선택하세요</span>
@@ -1668,14 +1728,18 @@ function renderRomanceModeUI(container) {
     </div>
   `;
 
-  // 시간대별 대화 비율
+  // 시간대별 대화 비율 (24시간 전체 4구간: 새벽·아침 02-09시, 낮 09-18시, 저녁 18-22시, 심야 22-02시)
   const hourly = (currentData.activity && currentData.activity.hourly) ? currentData.activity.hourly : [35, 18, 8, 2, 1, 2, 9, 28, 64, 72, 68, 85, 94, 78, 72, 80, 88, 96, 112, 134, 156, 188, 245, 210];
   const totalHourly = Math.max(1, hourly.reduce((a, b) => a + b, 0));
-  const lateNightSum = (hourly[22] || 0) + (hourly[23] || 0) + (hourly[0] || 0) + (hourly[1] || 0) + (hourly[2] || 0);
-  const lateNightRatio = Math.min(68, Math.max(18, Math.round((lateNightSum / totalHourly) * 100)));
-  const dayTimeSum = hourly.slice(9, 18).reduce((a, b) => a + b, 0);
+  const lateNightSum = (hourly[22] || 0) + (hourly[23] || 0) + (hourly[0] || 0) + (hourly[1] || 0); // 22시-02시
+  const dawnMorningSum = hourly.slice(2, 9).reduce((a, b) => a + b, 0); // 02시-09시
+  const dayTimeSum = hourly.slice(9, 18).reduce((a, b) => a + b, 0); // 09시-18시
+  const eveningSum = hourly.slice(18, 22).reduce((a, b) => a + b, 0); // 18시-22시
+
+  const dawnMorningRatio = Math.round((dawnMorningSum / totalHourly) * 100);
   const dayTimeRatio = Math.round((dayTimeSum / totalHourly) * 100);
-  const eveningRatio = Math.max(10, 100 - lateNightRatio - dayTimeRatio);
+  const eveningRatio = Math.round((eveningSum / totalHourly) * 100);
+  const lateNightRatio = Math.max(0, 100 - dawnMorningRatio - dayTimeRatio - eveningRatio);
 
   const wordsA = (mA.topWords && mA.topWords.length > 0) ? mA.topWords.slice(0, 5) : [{ word: "보고싶어", count: 42 }, { word: "조심히", count: 31 }, { word: "밥먹었어?", count: 27 }];
   const wordsB = (mB.topWords && mB.topWords.length > 0) ? mB.topWords.slice(0, 5) : [{ word: "얼른보자", count: 39 }, { word: "고마워", count: 33 }, { word: "집가자", count: 24 }];
@@ -1700,7 +1764,7 @@ function renderRomanceModeUI(container) {
             ${bigConclusionTitle}
           </h3>
 
-          <!-- 좌우 인물 & 중앙 애정도 점수 (이름과 점수를 압도적으로 크게!) -->
+          <!-- 좌우 인물 & 중앙 애정도 점수 -->
           <div class="w-full max-w-4xl grid grid-cols-1 md:grid-cols-3 gap-6 items-center pt-2">
             <!-- 인물 A -->
             <div class="flex flex-col items-center space-y-3 p-5 rounded-3xl bg-pink-500/[0.06] border border-pink-400/25">
@@ -1711,23 +1775,22 @@ function renderRomanceModeUI(container) {
               </div>
               <div class="space-y-1">
                 <h4 class="text-2xl sm:text-3xl font-black text-[#f4f4f6]">${mA.name}</h4>
-                <div class="text-xl sm:text-2xl font-black text-pink-300">애정 표현 ${totalInvestA}%</div>
-                <p class="text-xs text-[#d4d7e0] font-semibold">${mA.roleDesc || mA.title}</p>
-                <p class="text-xs text-[#8e929f] pt-1">먼저 말 걸기 ${mA.starters}회 • 1:1 답장 ${speedA}분</p>
-                ${selectiveBoostA >= 15 ? `<span class="inline-block mt-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-pink-400 text-[#060608]">⚡ ${mB.name}님에게 ${selectiveBoostA}% 더 칼답!</span>` : ""}
+                <div class="text-xl sm:text-2xl font-black text-pink-300">호감 비중 ${totalInvestA}%</div>
+                <p class="text-xs text-[#d4d7e0] font-semibold pt-1">${mA.roleDesc || mA.title}</p>
               </div>
             </div>
 
             <!-- 중앙: 종합 호감도 -->
             <div class="flex flex-col items-center justify-center space-y-3">
-              <div class="w-36 h-36 sm:w-44 sm:h-44 rounded-full bg-gradient-to-br from-pink-500/25 via-rose-500/15 to-sky-500/25 border-2 border-pink-300/60 flex flex-col items-center justify-center shadow-[0_0_55px_rgba(244,114,182,0.35)]">
-                <span class="text-xs font-black text-pink-200">두 사람 호감도</span>
-                <span class="text-4xl sm:text-6xl font-black text-white leading-none my-1.5">${romanceScore}<span class="text-xl font-bold text-pink-300">점</span></span>
-                <span class="text-xs font-bold text-emerald-300">말투 닮은 정도 ${dyadicLsm}%</span>
+              <div class="w-36 h-36 sm:w-44 sm:h-44 rounded-full bg-gradient-to-br from-pink-500/25 via-rose-500/15 to-sky-500/25 border-2 border-pink-300/60 flex flex-col items-center justify-center shadow-[0_0_55px_rgba(244,114,182,0.35)] p-4">
+                <span class="text-xs sm:text-sm font-black text-pink-200">두 사람 호감도</span>
+                <span class="text-4xl sm:text-6xl font-black text-white leading-none my-2">${romanceScore}<span class="text-xl sm:text-2xl font-bold text-pink-300">점</span></span>
               </div>
-              <span class="text-xs sm:text-sm font-bold text-pink-200">
-                ${pairData && pairData.exchanges ? `두 사람 직접 티키타카 ${pairData.exchanges}회 · 최대 ${pairData.maxStreak || 12}연속 대화` : `주고받은 대화 총 ${(currentData.totalMessages || 0).toLocaleString()}건`}
-              </span>
+              <div class="flex flex-col items-center gap-1.5 text-center">
+                <span class="px-3.5 py-1.5 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-400/30">
+                  말투 동조율(LSM) ${dyadicLsm}%
+                </span>
+              </div>
             </div>
 
             <!-- 인물 B -->
@@ -1739,17 +1802,15 @@ function renderRomanceModeUI(container) {
               </div>
               <div class="space-y-1">
                 <h4 class="text-2xl sm:text-3xl font-black text-[#f4f4f6]">${mB.name}</h4>
-                <div class="text-xl sm:text-2xl font-black text-sky-300">애정 표현 ${totalInvestB}%</div>
-                <p class="text-xs text-[#d4d7e0] font-semibold">${mB.roleDesc || mB.title}</p>
-                <p class="text-xs text-[#8e929f] pt-1">먼저 말 걸기 ${mB.starters}회 • 1:1 답장 ${speedB}분</p>
-                ${selectiveBoostB >= 15 ? `<span class="inline-block mt-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-sky-400 text-[#060608]">⚡ ${mA.name}님에게 ${selectiveBoostB}% 더 칼답!</span>` : ""}
+                <div class="text-xl sm:text-2xl font-black text-sky-300">호감 비중 ${totalInvestB}%</div>
+                <p class="text-xs text-[#d4d7e0] font-semibold pt-1">${mB.roleDesc || mB.title}</p>
               </div>
             </div>
           </div>
 
-          <!-- 직관적인 결과 요약 -->
+          <!-- 직관적인 결과 요약 (1줄 One-liner) -->
           <div class="max-w-3xl mx-auto pt-5 border-t border-white/[0.08] space-y-4">
-            <p class="text-base sm:text-lg text-[#f4f4f6] leading-relaxed break-keep">${romanceVerdict}</p>
+            <p class="text-base sm:text-lg text-[#f4f4f6] font-medium leading-relaxed break-keep">"${romanceVerdict}"</p>
             <div class="flex flex-wrap items-center justify-center gap-3 pt-1">
               <button onclick="setRomanceSubTab('mind')" class="px-5 py-2.5 rounded-full text-xs sm:text-sm font-black bg-pink-400 hover:bg-pink-300 text-[#060608] transition-all cursor-pointer flex items-center gap-2 shadow-lg">
                 <i class="fa-solid fa-wand-magic-sparkles"></i> 두 사람의 숨겨진 속마음 &amp; 질문 6선 보기
@@ -1784,9 +1845,9 @@ function renderRomanceModeUI(container) {
             <!-- 바 1: 누가 먼저 연락할까 -->
             <div class="space-y-2">
               <div class="flex justify-between items-baseline text-xs sm:text-sm font-bold">
-                <span class="text-pink-300 text-sm sm:text-base font-black">${mA.name} ${startShareA}% · ${mA.starters}회</span>
+                <span class="text-pink-300 text-sm sm:text-base font-black">${mA.name} ${startShareA}% (${mA.starters}회)</span>
                 <span class="text-[#f4f4f6] text-sm sm:text-base font-black">① 누가 먼저 연락할까?</span>
-                <span class="text-sky-300 text-sm sm:text-base font-black">${mB.starters}회 · ${startShareB}% ${mB.name}</span>
+                <span class="text-sky-300 text-sm sm:text-base font-black">${mB.name} ${startShareB}% (${mB.starters}회)</span>
               </div>
               <div class="w-full h-4 rounded-full bg-[#161924] overflow-hidden flex p-0.5 gap-1">
                 <div class="h-full rounded-l-full bg-gradient-to-r from-pink-500 to-rose-400" style="width: ${startShareA}%"></div>
@@ -1797,14 +1858,15 @@ function renderRomanceModeUI(container) {
             <!-- 바 2: 누가 더 빨리 답장할까 -->
             <div class="space-y-2">
               <div class="flex justify-between items-baseline text-xs sm:text-sm font-bold">
-                <span class="text-pink-300 text-sm sm:text-base font-black">${mA.name} 1:1 평균 ${speedA}분${fastRepliesA > 0 ? ` (칼답 ${fastRepliesA}회)` : ""}</span>
+                <span class="text-pink-300 text-sm sm:text-base font-black">${mA.name} 평균 ${speedA}분 (반응 ${speedShareA}%)</span>
                 <span class="text-[#f4f4f6] text-sm sm:text-base font-black">② 누가 더 빨리 답장할까?</span>
-                <span class="text-sky-300 text-sm sm:text-base font-black">${fastRepliesB > 0 ? `(칼답 ${fastRepliesB}회) ` : ""}1:1 평균 ${speedB}분 ${mB.name}</span>
+                <span class="text-sky-300 text-sm sm:text-base font-black">${mB.name} 평균 ${speedB}분 (반응 ${speedShareB}%)</span>
               </div>
               <div class="w-full h-4 rounded-full bg-[#161924] overflow-hidden flex p-0.5 gap-1">
                 <div class="h-full rounded-l-full bg-gradient-to-r from-pink-500 to-rose-400" style="width: ${speedShareA}%"></div>
                 <div class="h-full rounded-r-full bg-gradient-to-l from-sky-500 to-cyan-400" style="width: ${speedShareB}%"></div>
               </div>
+              <p class="text-[11px] text-[#8e929f] text-center">* 대기 시간이 짧을수록 신속한 응답으로 인식되어 반응 점수(그래프 길이)가 높게 환산됩니다.</p>
               ${(selectiveBoostA >= 15 || selectiveBoostB >= 15) ? `
                 <div class="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs">
                   ${selectiveBoostA >= 15 ? `<span class="text-pink-300 font-bold">💘 ${mA.name}님은 평소 평균(${mA.replySpeed}분)보다 ${mB.name}님에게 <strong>${speedA}분</strong>으로 ${selectiveBoostA}% 더 빨리 칼답합니다!</span>` : `<span></span>`}
@@ -1818,7 +1880,7 @@ function renderRomanceModeUI(container) {
               <div class="flex justify-between items-baseline text-xs sm:text-sm font-bold">
                 <span class="text-pink-300 text-sm sm:text-base font-black">${mA.name} 평균 ${mA.avgLen}자</span>
                 <span class="text-[#f4f4f6] text-sm sm:text-base font-black">③ 누가 더 길고 정성스럽게 말할까?</span>
-                <span class="text-sky-300 text-sm sm:text-base font-black">평균 ${mB.avgLen}자 ${mB.name}</span>
+                <span class="text-sky-300 text-sm sm:text-base font-black">${mB.name} 평균 ${mB.avgLen}자</span>
               </div>
               <div class="w-full h-4 rounded-full bg-[#161924] overflow-hidden flex p-0.5 gap-1">
                 <div class="h-full rounded-l-full bg-gradient-to-r from-pink-500 to-rose-400" style="width: ${lenShareA}%"></div>
@@ -1829,9 +1891,9 @@ function renderRomanceModeUI(container) {
             <!-- 바 4: 다정한 질문과 애정 표현 -->
             <div class="space-y-2">
               <div class="flex justify-between items-baseline text-xs sm:text-sm font-bold">
-                <span class="text-pink-300 text-sm sm:text-base font-black">${mA.name} ${qShareA}% · 질문 ${mA.questions}회</span>
+                <span class="text-pink-300 text-sm sm:text-base font-black">${mA.name} ${qShareA}% (질문 ${mA.questions}회)</span>
                 <span class="text-[#f4f4f6] text-sm sm:text-base font-black">④ 누가 더 궁금해하고 다정하게 표현할까?</span>
-                <span class="text-sky-300 text-sm sm:text-base font-black">질문 ${mB.questions}회 · ${qShareB}% ${mB.name}</span>
+                <span class="text-sky-300 text-sm sm:text-base font-black">${mB.name} ${qShareB}% (질문 ${mB.questions}회)</span>
               </div>
               <div class="w-full h-4 rounded-full bg-[#161924] overflow-hidden flex p-0.5 gap-1">
                 <div class="h-full rounded-l-full bg-gradient-to-r from-pink-500 to-rose-400" style="width: ${qShareA}%"></div>
@@ -1863,7 +1925,7 @@ function renderRomanceModeUI(container) {
               <div class="space-y-2.5 text-xs">
                 <div class="flex items-center justify-between">
                   <span class="text-[#8e929f]">☀️ 낮 시간 (09시-18시)</span>
-                  <span class=" font-bold text-[#d4d7e0]">${dayTimeRatio}%</span>
+                  <span class="font-bold text-[#d4d7e0]">${dayTimeRatio}%</span>
                 </div>
                 <div class="w-full h-2 rounded-full bg-white/[0.06] overflow-hidden">
                   <div class="h-full rounded-full bg-sky-400/70" style="width: ${dayTimeRatio}%"></div>
@@ -1871,18 +1933,26 @@ function renderRomanceModeUI(container) {
 
                 <div class="flex items-center justify-between pt-1">
                   <span class="text-[#8e929f]">🌆 저녁 시간 (18시-22시)</span>
-                  <span class=" font-bold text-[#d4d7e0]">${eveningRatio}%</span>
+                  <span class="font-bold text-[#d4d7e0]">${eveningRatio}%</span>
                 </div>
                 <div class="w-full h-2 rounded-full bg-white/[0.06] overflow-hidden">
                   <div class="h-full rounded-full bg-indigo-400/80" style="width: ${eveningRatio}%"></div>
                 </div>
 
                 <div class="flex items-center justify-between pt-1">
-                  <span class="text-pink-300 font-bold">🌙 밤·새벽 감성 시간 (22시-02시)</span>
-                  <span class=" font-black text-pink-300">${lateNightRatio}%</span>
+                  <span class="text-pink-300 font-bold">🌙 심야·감성 시간 (22시-02시)</span>
+                  <span class="font-black text-pink-300">${lateNightRatio}%</span>
                 </div>
                 <div class="w-full h-2 rounded-full bg-white/[0.06] overflow-hidden">
                   <div class="h-full rounded-full bg-gradient-to-r from-pink-500 to-rose-400" style="width: ${lateNightRatio}%"></div>
+                </div>
+
+                <div class="flex items-center justify-between pt-1">
+                  <span class="text-[#8e929f]">🌅 새벽·아침 시간 (02시-09시)</span>
+                  <span class="font-bold text-[#d4d7e0]">${dawnMorningRatio}%</span>
+                </div>
+                <div class="w-full h-2 rounded-full bg-white/[0.06] overflow-hidden">
+                  <div class="h-full rounded-full bg-emerald-400/70" style="width: ${dawnMorningRatio}%"></div>
                 </div>
               </div>
             </div>
@@ -2027,7 +2097,7 @@ function renderRomanceModeUI(container) {
             <h4 class="text-xl sm:text-3xl font-black text-[#f4f4f6] mt-2">
               카톡 말투 뒤에 숨겨진 <span class="text-pink-300">${mA.name} ♥ ${mB.name}</span>의 진짜 속마음
             </h4>
-            <p class="text-xs sm:text-sm text-[#8e929f] mt-1">선톡 비율, 답장 속도, 밤 시간 대화 습관을 바탕으로 두 사람이 말하지 못한 속마음을 읽어냈습니다.</p>
+            <p class="text-xs sm:text-sm text-[#8e929f] mt-1">대화 패턴과 답장 흐름을 바탕으로 두 사람이 차마 전하지 못한 마음을 해석했습니다.</p>
           </div>
 
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -2035,28 +2105,27 @@ function renderRomanceModeUI(container) {
               const isFirst = idx === 0;
               const heartName = hh.name || (isFirst ? mA.name : mB.name);
               return `
-                <div class="p-6 rounded-3xl ${isFirst ? "bg-pink-500/[0.07] border border-pink-400/30" : "bg-sky-500/[0.07] border border-sky-400/30"} space-y-4">
+                <div class="p-6 rounded-3xl ${isFirst ? "bg-pink-500/[0.06] border border-pink-400/25" : "bg-sky-500/[0.06] border border-sky-400/25"} flex flex-col justify-between space-y-5">
                   <div class="flex items-center justify-between border-b border-white/[0.08] pb-3">
                     <span class="text-xl sm:text-2xl font-black ${isFirst ? "text-pink-300" : "text-sky-300"}">${heartName}님의 속마음</span>
-                    <span class="px-3 py-1 rounded-full text-xs font-bold bg-white/[0.06] text-[#d4d7e0]">겉말 vs 속마음</span>
+                    <span class="text-xs text-[#8e929f]">${hh.surfaceStyle}</span>
                   </div>
-                  <div class="space-y-1">
-                    <span class="text-xs font-bold text-[#8e929f]">겉으로 보이는 카톡 스타일</span>
-                    <p class="text-xs sm:text-sm text-[#d4d7e0] font-semibold">${hh.surfaceStyle}</p>
+
+                  <!-- 진짜 속마음 인용구 (불필요한 중첩 박스 없이 자연스러운 카드 본문 배치) -->
+                  <div class="py-2">
+                    <p class="text-base sm:text-lg font-bold text-[#f4f4f6] leading-relaxed break-keep">
+                      ${hh.innerTruth}
+                    </p>
                   </div>
-                  <div class="p-4 rounded-2xl bg-[#090a0f]/90 border border-white/[0.08] space-y-1.5">
-                    <span class="text-xs font-black ${isFirst ? "text-pink-300" : "text-sky-300"} flex items-center gap-1.5">
-                      <i class="fa-solid fa-heart"></i> 차마 말 못 한 진짜 속마음
-                    </span>
-                    <p class="text-sm sm:text-base font-bold text-[#f4f4f6] leading-relaxed break-keep">${hh.innerTruth}</p>
-                  </div>
-                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-xs">
-                    <div class="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-                      <span class="font-bold text-rose-300 block mb-1">남몰래 신경 쓰는 걱정</span>
+
+                  <!-- 걱정과 설렘 포인트 -->
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 text-xs">
+                    <div class="p-3 rounded-2xl bg-white/[0.03]">
+                      <span class="font-bold text-rose-300 block mb-1">남몰래 하는 걱정</span>
                       <span class="text-[#d4d7e0] leading-relaxed">${hh.secretFear}</span>
                     </div>
-                    <div class="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-                      <span class="font-bold text-emerald-300 block mb-1">설렘이 터지는 포인트</span>
+                    <div class="p-3 rounded-2xl bg-white/[0.03]">
+                      <span class="font-bold text-emerald-300 block mb-1">설레는 포인트</span>
                       <span class="text-[#d4d7e0] leading-relaxed">${hh.loveTrigger}</span>
                     </div>
                   </div>
@@ -2066,19 +2135,13 @@ function renderRomanceModeUI(container) {
           </div>
         </div>
 
-        <!-- 2. 연인·썸 사이 차마 물어보지 못했던 질문 6선 (좌측 작은 말풍선 6개 모음 + 우측 대형 답변 스테이지 토글) -->
+        <!-- 2. 연인·썸 사이 차마 물어보지 못했던 질문 6선 (좌측 질문 리스트 + 우측 상세 답변) -->
         <div class="rounded-[32px] p-6 sm:p-8 bg-[#0d0f16]/90 border border-white/[0.07] space-y-6">
-          <div class="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <span class="px-3 py-1 rounded-full text-xs font-black bg-purple-400 text-[#060608]">💬 차마 못 물어본 질문 6선</span>
-              <h4 class="text-xl sm:text-2xl font-black text-[#f4f4f6] mt-2">
-                궁금한 질문 말풍선을 눌러보세요!
-              </h4>
-              <p class="text-xs sm:text-sm text-[#8e929f] mt-1">왼쪽의 작은 질문 말풍선을 누르면 오른쪽 큰 공간에 답변이 열리고, 다시 누르면 닫힙니다.</p>
-            </div>
-            <span class="px-3 py-1.5 rounded-full text-xs font-extrabold bg-pink-500/15 text-pink-300 border border-pink-400/30">
-              👆 말풍선 클릭 시 켜기 / 다시 클릭 시 끄기
-            </span>
+          <div>
+            <span class="px-3 py-1 rounded-full text-xs font-black bg-purple-400 text-[#060608]">차마 못 물어본 질문 6선</span>
+            <h4 class="text-xl sm:text-2xl font-black text-[#f4f4f6] mt-2">
+              궁금한 질문을 선택하면 AI 심층 분석이 펼쳐집니다
+            </h4>
           </div>
 
           <!-- 좌측 작은 말풍선 6개 모음 (5열) + 우측 대형 답변 스테이지 (7열) -->
@@ -2106,7 +2169,7 @@ function renderRomanceModeUI(container) {
                       }">
                         Q${idx + 1}
                       </span>
-                      <p class="text-xs sm:text-sm font-extrabold leading-snug break-keep truncate ${
+                      <p class="text-xs sm:text-sm font-extrabold leading-snug break-keep whitespace-normal ${
                         isSelected ? "text-[#f4f4f6]" : "text-[#d4d7e0] group-hover:text-white"
                       }">
                         ${uq.q}
@@ -2208,8 +2271,8 @@ function renderRomanceModeUI(container) {
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div class="p-5 rounded-2xl bg-[#090a0f]/90 border border-white/[0.08] space-y-2">
               <div class="flex items-center justify-between">
-                <span class="px-2.5 py-0.5 rounded-full text-xs font-black bg-pink-400 text-[#060608]">⏱️ 답장 템포 궁합</span>
-                <span class="text-xs font-bold text-pink-300">${speedA}분 vs ${speedB}분</span>
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-black bg-pink-400 text-[#060608]">답장 템포 조언</span>
+                <span class="text-xs font-bold text-pink-300">반응 호흡</span>
               </div>
               <p class="text-sm sm:text-base font-black text-[#f4f4f6] pt-1 break-keep">
                 ${Math.abs(speedA - speedB) <= 5
@@ -2227,11 +2290,11 @@ function renderRomanceModeUI(container) {
 
             <div class="p-5 rounded-2xl bg-[#090a0f]/90 border border-white/[0.08] space-y-2">
               <div class="flex items-center justify-between">
-                <span class="px-2.5 py-0.5 rounded-full text-xs font-black bg-sky-400 text-[#060608]">💬 말투·문장 호흡</span>
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-black bg-sky-400 text-[#060608]">말투·문장 호흡</span>
                 <span class="text-xs font-bold text-sky-300">동조율 ${dyadicLsm}%</span>
               </div>
               <p class="text-sm sm:text-base font-black text-[#f4f4f6] pt-1 break-keep">
-                평균 ${mA.avgLen}자 vs ${mB.avgLen}자 • 웃음·공감 리액션 ${mA.laughs + mB.laughs}회
+                서로의 문장 호흡과 리액션 스타일이 자연스럽게 닮아가는 상태
               </p>
               <p class="text-xs text-[#8e929f] leading-relaxed break-keep">
                 ${dyadicLsm >= 75
@@ -2242,7 +2305,7 @@ function renderRomanceModeUI(container) {
 
             <div class="p-5 rounded-2xl bg-[#090a0f]/90 border border-white/[0.08] space-y-2">
               <div class="flex items-center justify-between">
-                <span class="px-2.5 py-0.5 rounded-full text-xs font-black bg-purple-400 text-[#060608]">🌙 베스트 대화 타이밍</span>
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-black bg-purple-400 text-[#060608]">베스트 대화 타이밍</span>
                 <span class="text-xs font-bold text-purple-300">심야 비중 ${lateNightRatio}%</span>
               </div>
               <p class="text-sm sm:text-base font-black text-[#f4f4f6] pt-1 break-keep">
@@ -2251,7 +2314,7 @@ function renderRomanceModeUI(container) {
                   : "낮과 저녁 시간대 일상 공유가 활발하고 건강한 텐션을 유지하는 커플"}
               </p>
               <p class="text-xs text-[#8e929f] leading-relaxed break-keep">
-                질문 횟수(${mA.questions + mB.questions}회)가 활발할수록 대화가 길어지므로, 근황 보고 끝에 가벼운 질문 하나를 덧붙이면 티키타카가 훨씬 잘 이어집니다.
+                근황을 전할 때 끝에 가벼운 질문 하나를 덧붙이면 서로의 대화가 훨씬 길고 다정하게 이어집니다.
               </p>
             </div>
           </div>
@@ -4958,17 +5021,77 @@ function renderShareCard() {
 
   // ==================== 모드 2: 💘 썸·연인 1:1 애정도 전용 포토카드 템플릿 ====================
   if (selectedAnalysisMode === "romance") {
-    const acadRom = (currentData.academicMetrics && currentData.academicMetrics.romance) || {};
-    const mA = acadRom.mA || (currentData.members && currentData.members[0]) || m;
-    const mB = acadRom.mB || (currentData.members && currentData.members[1]) || mA;
-    const loveScore = acadRom.loveScore || 88;
-    const pushPullText = acadRom.pushPullText || "서로 호감 신호를 주고받는 달달한 관계";
+    const members = currentData.members || [];
+    const idxA = Math.min(selectedRomancePair[0] || 0, Math.max(0, members.length - 1));
+    const idxB = members.length > 1 ? Math.min(selectedRomancePair[1] || 1, members.length - 1) : 0;
+    const mA = members[idxA] || (currentData.members && currentData.members[0]) || m;
+    const mB = members[idxB] || (currentData.members && currentData.members[1]) || mA;
+
+    // 1:1 말투·웃음·질문 닮은 정도 계산 (메인 탭과 100% 동일한 수치 바인딩)
+    const lsmLen = 1 - Math.abs((mA.avgLen || 10) - (mB.avgLen || 10)) / ((mA.avgLen || 10) + (mB.avgLen || 10) + 0.1);
+    const lsmLaugh = 1 - Math.abs(((mA.laughs || 1) / (mA.totalMsgs || 1)) - ((mB.laughs || 1) / (mB.totalMsgs || 1))) / (((mA.laughs || 1) / (mA.totalMsgs || 1)) + ((mB.laughs || 1) / (mB.totalMsgs || 1)) + 0.01);
+    const lsmQ = 1 - Math.abs(((mA.questions || 1) / (mA.totalMsgs || 1)) - ((mB.questions || 1) / (mB.totalMsgs || 1))) / (((mA.questions || 1) / (mA.totalMsgs || 1)) + ((mB.questions || 1) / (mB.totalMsgs || 1)) + 0.01);
+    const dyadicLsm = Math.min(99, Math.max(55, Math.round((lsmLen * 0.4 + lsmLaugh * 0.35 + lsmQ * 0.25) * 100)));
+
+    const pairData = (currentData.pairRankings || []).find(p => p.pair && p.pair.includes(mA.name) && p.pair.includes(mB.name));
+
+    let speedA = Math.max(1, mA.replySpeed || 4);
+    let speedB = Math.max(1, mB.replySpeed || 5);
+    if (pairData && Array.isArray(pairData.pair)) {
+      if (pairData.pair[0] === mA.name) {
+        if (pairData.avgReply1to2) speedA = Math.max(1, pairData.avgReply1to2);
+        if (pairData.avgReply2to1) speedB = Math.max(1, pairData.avgReply2to1);
+      } else {
+        if (pairData.avgReply2to1) speedA = Math.max(1, pairData.avgReply2to1);
+        if (pairData.avgReply1to2) speedB = Math.max(1, pairData.avgReply1to2);
+      }
+    }
+    const invSpeedA = 1 / speedA;
+    const invSpeedB = 1 / speedB;
+    const speedShareA = Math.round((invSpeedA / (invSpeedA + invSpeedB)) * 100);
+    const speedShareB = 100 - speedShareA;
+
+    const startA = Math.max(1, mA.starters || 1);
+    const startB = Math.max(1, mB.starters || 1);
+    const startShareA = Math.round((startA / (startA + startB)) * 100);
+    const startShareB = 100 - startShareA;
+
+    const lenA = Math.max(1, mA.avgLen || 15);
+    const lenB = Math.max(1, mB.avgLen || 15);
+    const lenShareA = Math.round((lenA / (lenA + lenB)) * 100);
+    const lenShareB = 100 - lenShareA;
+
+    const qAffA = Math.max(1, (mA.questions || 1) + (mA.affectionHits || 0) * 2);
+    const qAffB = Math.max(1, (mB.questions || 1) + (mB.affectionHits || 0) * 2);
+    const qShareA = Math.round((qAffA / (qAffA + qAffB)) * 100);
+    const qShareB = 100 - qShareA;
+
+    const totalInvestA = Math.round(startShareA * 0.3 + speedShareA * 0.25 + lenShareA * 0.2 + qShareA * 0.25);
+    const totalInvestB = 100 - totalInvestA;
+    const romanceScore = Math.min(99, Math.max(68, Math.round(dyadicLsm * 0.5 + (pairData ? pairData.score : 92) * 0.5)));
+    const moreInLove = totalInvestA >= totalInvestB ? mA : mB;
+    const investDiff = Math.abs(totalInvestA - totalInvestB);
+
+    let stageBadge = "💞 완벽한 쌍방 호감";
+    if (romanceScore >= 92 && investDiff <= 8) {
+      stageBadge = "💞 완벽한 쌍방 호감";
+    } else if (romanceScore >= 85 && investDiff > 8) {
+      stageBadge = `💘 ${moreInLove.name}님의 직진 리드`;
+    } else if (romanceScore >= 75) {
+      stageBadge = "🌸 설레는 썸 상승기";
+    } else {
+      stageBadge = "💭 온도 차 조율 필요";
+    }
+
+    const pushPullText = pairData && pairData.summary
+      ? pairData.summary
+      : `${mA.name}님과 ${mB.name}님의 애정 표현 비중은 ${totalInvestA}% 대 ${totalInvestB}%로, 호감도 ${romanceScore}점의 설렘 가득한 관계입니다.`;
 
     if (currentCardMode === "personal" && m) {
       const charInfo = getCharDataLocal(m.cti);
-      const isMoreInLove = acadRom.moreInLove && acadRom.moreInLove.name === m.name;
-      const myAffection = (mA && m.name === mA.name) ? (acadRom.affectionA || 85) : (acadRom.affectionB || 82);
-      const myReply = (mA && m.name === mA.name) ? (acadRom.replyA || 5) : (acadRom.replyB || 7);
+      const isMoreInLove = moreInLove.name === m.name;
+      const myInvest = (m.name === mA.name) ? totalInvestA : totalInvestB;
+      const myReply = (m.name === mA.name) ? speedA : speedB;
 
       if (categoryTag) {
         categoryTag.innerText = "ROMANCE AFFECTION CARD";
@@ -4976,7 +5099,7 @@ function renderShareCard() {
       }
       if (subHeader) subHeader.innerText = `${currentData.roomName || '1:1 대화방'} • 썸·연인 분석`;
       if (badgeRight) {
-        badgeRight.innerText = `호감도 ${myAffection}%`;
+        badgeRight.innerText = `호감도 ${romanceScore}점`;
         badgeRight.style.backgroundColor = "rgba(244,63,94,0.2)";
         badgeRight.style.color = "#fda4af";
         badgeRight.style.borderColor = "rgba(244,63,94,0.4)";
@@ -4990,20 +5113,32 @@ function renderShareCard() {
       if (heroName) {
         heroName.innerText = m.name;
         heroName.style.color = "#ffffff";
+        heroName.style.lineHeight = "1.2";
       }
       if (heroCti) {
-        heroCti.innerText = isMoreInLove ? "💘 더 반한 쪽" : "💞 설렘 유발자";
+        heroCti.innerHTML = isMoreInLove 
+          ? `<span style="display:inline-block;margin-right:4px;">💘</span><span>더 반한 쪽</span>`
+          : `<span style="display:inline-block;margin-right:4px;">💞</span><span>설렘 유발자</span>`;
         heroCti.style.backgroundColor = "#f43f5e";
         heroCti.style.color = "#ffffff";
+        heroCti.style.marginLeft = "8px";
+        heroCti.style.padding = "3px 10px";
+        heroCti.style.lineHeight = "1.25";
+        heroCti.style.borderRadius = "9999px";
+        heroCti.style.display = "inline-flex";
+        heroCti.style.alignItems = "center";
+        heroCti.style.verticalAlign = "middle";
       }
       if (heroTitle) {
         heroTitle.innerText = `${m.title || charInfo.name} (${m.cti})`;
         heroTitle.style.color = "#fda4af";
+        heroTitle.style.lineHeight = "1.3";
       }
       if (heroSub) {
         const quote = (m.quotes && m.quotes[0]) ? m.quotes[0] : "우리 지금 꽤 달달한 것 같은데?";
         heroSub.innerText = `"${quote}"`;
         heroSub.style.color = "#e2e8f0";
+        heroSub.style.lineHeight = "1.35";
       }
       if (cardHeroGlow) {
         cardHeroGlow.style.background = "radial-gradient(circle, rgba(244,63,94,0.35) 0%, transparent 70%)";
@@ -5012,24 +5147,24 @@ function renderShareCard() {
       if (bodySection) {
         bodySection.innerHTML = `
           <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;text-align:left;">
-            <div style="background:#140913;border:1px solid rgba(244,63,94,0.28);border-radius:14px;padding:10px;">
-              <span style="font-size:9px;color:#fda4af;font-weight:700;display:block;">💗 내 애정 표현 지수</span>
-              <p style="font-size:13px;font-weight:900;color:#ffffff;margin-top:2px;">${myAffection}점 <span style="font-size:10px;color:#fb7185;">(대화 ${m.msgRatio}%)</span></p>
+            <div style="background:#140913;border:1px solid rgba(244,63,94,0.28);border-radius:14px;padding:10px 12px;">
+              <span style="font-size:10px;color:#fda4af;font-weight:700;display:block;line-height:1.3;">💗 내 애정 표현 지수</span>
+              <p style="font-size:13px;font-weight:900;color:#ffffff;margin-top:2px;line-height:1.2;">${myInvest}% <span style="font-size:10px;color:#fb7185;font-weight:700;">(대화 ${m.msgRatio}%)</span></p>
             </div>
-            <div style="background:#140913;border:1px solid rgba(244,63,94,0.28);border-radius:14px;padding:10px;">
-              <span style="font-size:9px;color:#fda4af;font-weight:700;display:block;">⚡ 평균 답장 속도</span>
-              <p style="font-size:13px;font-weight:900;color:#ffffff;margin-top:2px;">${myReply}분 <span style="font-size:10px;color:#f5b73d;">(선톡 ${m.starters || 0}회)</span></p>
+            <div style="background:#140913;border:1px solid rgba(244,63,94,0.28);border-radius:14px;padding:10px 12px;">
+              <span style="font-size:10px;color:#fda4af;font-weight:700;display:block;line-height:1.3;">⚡ 1:1 답장 속도</span>
+              <p style="font-size:13px;font-weight:900;color:#ffffff;margin-top:2px;line-height:1.2;">${myReply}분 <span style="font-size:10px;color:#f5b73d;font-weight:700;">(선톡 ${m.starters || 0}회)</span></p>
             </div>
           </div>
-          <div style="background:#140913;border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:10px;text-align:left;">
-            <span style="font-size:9px;font-weight:800;color:#fb7185;display:block;margin-bottom:4px;">💌 대화 속 호감 시그널 진단</span>
+          <div style="background:#140913;border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:10px 12px;text-align:left;">
+            <span style="font-size:10px;font-weight:800;color:#fb7185;display:block;margin-bottom:4px;line-height:1.3;">💌 대화 속 호감 시그널 진단</span>
             <p style="font-size:11px;color:#f8fafc;line-height:1.45;font-weight:600;word-break:keep-all;">
               ${pushPullText}
             </p>
           </div>
-          <div style="background:linear-gradient(90deg,rgba(244,63,94,0.18),rgba(245,183,61,0.14));border:1px solid rgba(244,63,94,0.35);border-radius:14px;padding:10px;text-align:left;">
-            <span style="font-size:9px;font-weight:900;color:#fda4af;display:block;margin-bottom:3px;">🌡️ 두 사람의 종합 설렘 온도</span>
-            <p style="font-size:12px;color:#ffffff;font-weight:800;">💘 종합 썸·연애 케미 ${loveScore}% • ${acadRom.stageLabel || "핑크빛 기류 폭발"}</p>
+          <div style="background:linear-gradient(90deg,rgba(244,63,94,0.18),rgba(245,183,61,0.14));border:1px solid rgba(244,63,94,0.35);border-radius:14px;padding:10px 12px;text-align:left;">
+            <span style="font-size:10px;font-weight:900;color:#fda4af;display:block;margin-bottom:3px;line-height:1.3;">🌡️ 두 사람의 종합 설렘 온도</span>
+            <p style="font-size:12px;color:#ffffff;font-weight:800;line-height:1.3;">💘 종합 호감도 ${romanceScore}점 (LSM ${dyadicLsm}%) • ${stageBadge}</p>
           </div>
         `;
       }
@@ -5040,57 +5175,76 @@ function renderShareCard() {
       if (categoryTag) {
         categoryTag.innerText = "COUPLE & SOME REPORT";
         categoryTag.style.color = "#fb7185";
+        categoryTag.style.lineHeight = "1.25";
       }
       if (subHeader) subHeader.innerText = `${mA ? mA.name : '나'} ❤️ ${mB ? mB.name : '상대방'} • 1:1 정밀 분석`;
       if (badgeRight) {
-        badgeRight.innerText = `케미 ${loveScore}%`;
+        badgeRight.innerText = `호감도 ${romanceScore}점`;
         badgeRight.style.backgroundColor = "rgba(244,63,94,0.2)";
         badgeRight.style.color = "#fda4af";
+        badgeRight.style.padding = "4px 10px";
+        badgeRight.style.lineHeight = "1.25";
       }
       if (heroSection) heroSection.classList.add("hidden");
 
       if (bodySection) {
         bodySection.innerHTML = `
-          <div style="display:flex;flex-direction:column;gap:8px;text-align:left;">
-            <div style="background:#160a14;border:1px solid rgba(244,63,94,0.32);border-radius:16px;padding:12px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <div style="display:flex;flex-direction:column;gap:10px;text-align:left;">
+            <!-- 상단 매치업 히어로 박스 -->
+            <div style="background:linear-gradient(135deg,#1c0c19 0%,#140813 100%);border:1px solid rgba(244,63,94,0.35);border-radius:18px;padding:14px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
               <div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:0;">
-                <img src="${charA.img}" style="width:48px;height:48px;border-radius:9999px;background:#241120;padding:4px;border:2px solid #fb7185;object-fit:contain;">
-                <span style="font-size:12px;font-weight:900;color:#ffffff;margin-top:4px;">${mA ? mA.name : '참여자 A'}</span>
-                <span style="font-size:10px;color:#fda4af;font-weight:700;">호감 ${acadRom.affectionA || 86}%</span>
+                <img src="${charA.img}" style="width:52px;height:52px;border-radius:9999px;background:#241120;padding:4px;border:2px solid #fb7185;object-fit:contain;">
+                <span style="font-size:13px;font-weight:900;color:#ffffff;margin-top:6px;line-height:1.2;">${mA ? mA.name : '참여자 A'}</span>
+                <span style="font-size:10px;color:#fda4af;font-weight:700;margin-top:2px;">호감 표현 ${totalInvestA}%</span>
               </div>
-              <div style="text-align:center;padding:0 4px;">
-                <div style="font-size:18px;font-weight:900;color:#fb7185;">💘 ${loveScore}%</div>
-                <span style="font-size:9px;color:#f5b73d;font-weight:800;display:block;margin-top:2px;">1:1 애정 지수</span>
+              <div style="text-align:center;padding:0 6px;">
+                <div style="font-size:20px;font-weight:900;color:#fb7185;line-height:1.1;">💘 ${romanceScore}점</div>
+                <span style="font-size:10px;color:#34d399;font-weight:800;display:inline-block;margin-top:4px;background:rgba(52,211,153,0.15);padding:2px 8px;border-radius:9999px;">말투 닮음 ${dyadicLsm}%</span>
               </div>
               <div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:0;">
-                <img src="${charB.img}" style="width:48px;height:48px;border-radius:9999px;background:#241120;padding:4px;border:2px solid #f5b73d;object-fit:contain;">
-                <span style="font-size:12px;font-weight:900;color:#ffffff;margin-top:4px;">${mB ? mB.name : '참여자 B'}</span>
-                <span style="font-size:10px;color:#fde68a;font-weight:700;">호감 ${acadRom.affectionB || 82}%</span>
+                <img src="${charB.img}" style="width:52px;height:52px;border-radius:9999px;background:#241120;padding:4px;border:2px solid #f5b73d;object-fit:contain;">
+                <span style="font-size:13px;font-weight:900;color:#ffffff;margin-top:6px;line-height:1.2;">${mB ? mB.name : '참여자 B'}</span>
+                <span style="font-size:10px;color:#fde68a;font-weight:700;margin-top:2px;">호감 표현 ${totalInvestB}%</span>
               </div>
             </div>
 
-            <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;">
-              <div style="background:#120810;border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:8px;">
-                <span style="font-size:9px;color:#94a3b8;font-weight:700;display:block;">👑 더 많이 좋아하는 사람</span>
-                <p style="font-size:12px;font-weight:900;color:#fda4af;margin-top:2px;">${acadRom.moreInLove ? acadRom.moreInLove.name : (mA ? mA.name : '동률')}</p>
+            <!-- 1:1 애정도 밸런스 시각화 바 -->
+            <div style="background:#140813;border:1px solid rgba(244,63,94,0.22);border-radius:12px;padding:8px 12px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;font-weight:800;margin-bottom:4px;">
+                <span style="color:#fb7185;">${mA ? mA.name : '참여자 A'} ${totalInvestA}%</span>
+                <span style="color:#94a3b8;font-size:9px;">호감 표현 밸런스</span>
+                <span style="color:#f5b73d;">${totalInvestB}% ${mB ? mB.name : '참여자 B'}</span>
               </div>
-              <div style="background:#120810;border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:8px;">
-                <span style="font-size:9px;color:#94a3b8;font-weight:700;display:block;">⚡ 평균 답장 템포</span>
-                <p style="font-size:12px;font-weight:900;color:#ffffff;margin-top:2px;">${acadRom.replyA || 5}분 vs ${acadRom.replyB || 7}분</p>
-              </div>
-              <div style="background:#120810;border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:8px;">
-                <span style="font-size:9px;color:#94a3b8;font-weight:700;display:block;">💬 총 대화 메시지</span>
-                <p style="font-size:12px;font-weight:900;color:#ffffff;margin-top:2px;">${(currentData.totalMessages || 0).toLocaleString()}건</p>
-              </div>
-              <div style="background:#120810;border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:8px;">
-                <span style="font-size:9px;color:#94a3b8;font-weight:700;display:block;">🌙 심야 대화 골든타임</span>
-                <p style="font-size:12px;font-weight:900;color:#fde68a;margin-top:2px;">${(currentData.activity && currentData.activity.peakHour) || "밤 22시-24시"}</p>
+              <div style="height:6px;width:100%;border-radius:9999px;background:#2a1124;overflow:hidden;display:flex;">
+                <div style="height:100%;width:${totalInvestA}%;background:linear-gradient(90deg,#f43f5e,#fb7185);border-radius:9999px 0 0 9999px;"></div>
+                <div style="height:100%;width:${totalInvestB}%;background:linear-gradient(90deg,#f5b73d,#eab308);border-radius:0 9999px 9999px 0;"></div>
               </div>
             </div>
 
-            <div style="background:linear-gradient(90deg,rgba(244,63,94,0.16),rgba(168,85,247,0.16));border:1px solid rgba(244,63,94,0.32);border-radius:12px;padding:10px;">
-              <span style="font-size:9px;font-weight:900;color:#fda4af;display:block;margin-bottom:3px;">💞 AI 관계 총평</span>
-              <p style="font-size:10.5px;color:#ffffff;line-height:1.45;font-weight:600;word-break:keep-all;">
+            <!-- 핵심 4대 팩트 비교 그리드 -->
+            <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;">
+              <div style="background:#140813;border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:10px 12px;">
+                <span style="font-size:10px;color:#fda4af;font-weight:700;display:block;line-height:1.3;">👑 애정 표현 리드</span>
+                <p style="font-size:12px;font-weight:900;color:#ffffff;margin-top:3px;line-height:1.2;">${moreInLove.name} <span style="font-size:10px;color:#fda4af;">(${Math.max(totalInvestA, totalInvestB)}%)</span></p>
+              </div>
+              <div style="background:#140813;border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:10px 12px;">
+                <span style="font-size:10px;color:#fda4af;font-weight:700;display:block;line-height:1.3;">⚡ 1:1 답장 템포</span>
+                <p style="font-size:12px;font-weight:900;color:#ffffff;margin-top:3px;line-height:1.2;">${speedA}분 vs ${speedB}분</p>
+              </div>
+              <div style="background:#140813;border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:10px 12px;">
+                <span style="font-size:10px;color:#fda4af;font-weight:700;display:block;line-height:1.3;">💬 총 대화 메시지</span>
+                <p style="font-size:12px;font-weight:900;color:#ffffff;margin-top:3px;line-height:1.2;">${(currentData.totalMessages || 0).toLocaleString()}건</p>
+              </div>
+              <div style="background:#140813;border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:10px 12px;">
+                <span style="font-size:10px;color:#fda4af;font-weight:700;display:block;line-height:1.3;">🌙 대화 골든타임</span>
+                <p style="font-size:12px;font-weight:900;color:#fde68a;margin-top:3px;line-height:1.2;">${(currentData.activity && currentData.activity.peakHour) || "밤 22시-24시"}</p>
+              </div>
+            </div>
+
+            <!-- AI 관계 총평 카드 -->
+            <div style="background:linear-gradient(90deg,rgba(244,63,94,0.18),rgba(168,85,247,0.16));border:1px solid rgba(244,63,94,0.35);border-radius:14px;padding:12px 14px;">
+              <span style="font-size:10px;font-weight:900;color:#fda4af;display:block;margin-bottom:4px;line-height:1.3;">💞 AI 관계 총평</span>
+              <p style="font-size:11px;color:#ffffff;line-height:1.5;font-weight:600;word-break:keep-all;">
                 "${pushPullText}"
               </p>
             </div>
@@ -5384,12 +5538,12 @@ function renderShareCard() {
             </div>
             <div style="min-width:0;flex-grow:1;text-align:left;">
               <div style="display:flex;align-items:center;gap:4px;">
-                <span style="font-size:11px;font-weight:800;color:#ffffff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${mem.name}</span>
-                <span style="font-size:8px;font-weight:900;padding:1px 4px;border-radius:4px;color:#030708;background-color:${cInfo.color || '#f5b73d'};">${mem.cti}</span>
+                <span style="font-size:11.5px;font-weight:800;color:#ffffff;line-height:1.25;letter-spacing:normal;">${mem.name}</span>
+                <span style="font-size:8px;font-weight:900;padding:1.5px 4px;border-radius:4px;color:#030708;background-color:${cInfo.color || '#f5b73d'};line-height:1.1;">${mem.cti}</span>
               </div>
-              <p style="font-size:9px;color:#848c96;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${mem.title || cInfo.name}</p>
+              <p style="font-size:9.5px;color:#848c96;line-height:1.3;letter-spacing:normal;white-space:nowrap;">${mem.title || cInfo.name}</p>
             </div>
-            <span style="font-size:9px;font-weight:800;color:#f5b73d;flex-shrink:0;">${mem.msgRatio}%</span>
+            <span style="font-size:9.5px;font-weight:800;color:#f5b73d;flex-shrink:0;line-height:1.2;">${mem.msgRatio}%</span>
           </div>
         `;
       }).join("");
@@ -5462,12 +5616,12 @@ function setShareRatio(ratio) {
 
   if (ratio === "story") {
     canvas.style.width = "360px";
-    canvas.style.minHeight = "600px";
+    canvas.style.minHeight = "640px";
     btnStory.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-[#16202a] text-[#f5b73d] border border-[#f5b73d]/40 flex items-center gap-1 shadow-sm";
     btnSquare.className = "px-3 py-1.5 rounded-full text-xs font-medium border border-white/[0.08] bg-[#111820] text-[#848c96] hover:text-[#f6f8fa] flex items-center gap-1";
   } else {
     canvas.style.width = "380px";
-    canvas.style.minHeight = "520px";
+    canvas.style.minHeight = "480px";
     btnSquare.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-[#16202a] text-[#f5b73d] border border-[#f5b73d]/40 flex items-center gap-1 shadow-sm";
     btnStory.className = "px-3 py-1.5 rounded-full text-xs font-medium border border-white/[0.08] bg-[#111820] text-[#848c96] hover:text-[#f6f8fa] flex items-center gap-1";
   }
@@ -5514,6 +5668,9 @@ async function downloadShareCard() {
         if (clonedDoc.body) {
           clonedDoc.body.classList.remove("light-mode");
         }
+        const fixStyle = clonedDoc.createElement("style");
+        fixStyle.innerHTML = 'img[width="1"][height="1"], body > div[style*="visibility: hidden"] > img { display: inline !important; }';
+        if (clonedDoc.head) clonedDoc.head.appendChild(fixStyle);
         const clonedWrapper = clonedDoc.getElementById("shareCardWrapper");
         if (clonedWrapper) {
           clonedWrapper.style.transform = "none";
@@ -5526,8 +5683,8 @@ async function downloadShareCard() {
           clonedCard.style.boxShadow = "none";
           clonedCard.style.backgroundColor = "#111820";
           clonedCard.style.color = "#f6f8fa";
-          clonedCard.style.fontFamily = "'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif";
-          clonedCard.style.letterSpacing = "normal";
+          clonedCard.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif";
+          clonedCard.style.letterSpacing = "0px";
 
           // 로컬 file:// 환경에서 base64가 아닌 이미지로 인한 Tainted Canvas 방지
           const imgs = clonedCard.querySelectorAll("img");
@@ -5538,11 +5695,21 @@ async function downloadShareCard() {
             }
           });
 
-          // 모든 하위 텍스트 요소의 클리핑 방지 및 정렬 보정
+          // 모든 하위 텍스트 요소의 클리핑 방지 및 아래 처짐(Baseline Shift) 보정
           const allEls = clonedCard.querySelectorAll("*");
           allEls.forEach(el => {
-            el.style.letterSpacing = "normal";
-            el.style.textRendering = "geometricPrecision";
+            el.style.letterSpacing = "0px";
+            // 한글 유니코드 자음모음 분리 버그 원인인 geometricPrecision 제거
+            el.style.textRendering = "auto";
+
+            // html2canvas에서 텍스트가 아래로 쏠리는 현상 방지: 상하 라인높이 안정화
+            const tag = el.tagName.toLowerCase();
+            if (tag === "span" || tag === "p" || tag === "h3" || tag === "h4") {
+              if (!el.style.lineHeight || el.style.lineHeight === "normal") {
+                el.style.lineHeight = "1.3";
+              }
+            }
+
             if (el.classList.contains("truncate")) {
               el.style.overflow = "visible";
               el.style.textOverflow = "clip";
@@ -5625,6 +5792,9 @@ async function shareOrCopyCard() {
         if (clonedDoc.body) {
           clonedDoc.body.classList.remove("light-mode");
         }
+        const fixStyle = clonedDoc.createElement("style");
+        fixStyle.innerHTML = 'img[width="1"][height="1"], body > div[style*="visibility: hidden"] > img { display: inline !important; }';
+        if (clonedDoc.head) clonedDoc.head.appendChild(fixStyle);
         const clonedWrapper = clonedDoc.getElementById("shareCardWrapper");
         if (clonedWrapper) {
           clonedWrapper.style.transform = "none";
@@ -5638,7 +5808,7 @@ async function shareOrCopyCard() {
           clonedCard.style.backgroundColor = "#111820";
           clonedCard.style.color = "#f6f8fa";
           clonedCard.style.fontFamily = "'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif";
-          clonedCard.style.letterSpacing = "normal";
+          clonedCard.style.letterSpacing = "0px";
 
           const imgs = clonedCard.querySelectorAll("img");
           imgs.forEach(imgEl => {
@@ -5651,8 +5821,8 @@ async function shareOrCopyCard() {
           // 모든 하위 텍스트 요소의 클리핑 방지 및 정렬 보정
           const allEls = clonedCard.querySelectorAll("*");
           allEls.forEach(el => {
-            el.style.letterSpacing = "normal";
-            el.style.textRendering = "geometricPrecision";
+            el.style.letterSpacing = "0px";
+            el.style.textRendering = "auto";
             if (el.classList.contains("truncate")) {
               el.style.overflow = "visible";
               el.style.textOverflow = "clip";

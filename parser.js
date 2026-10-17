@@ -1031,22 +1031,45 @@ window.KAKAO_PARSER = {
       }
     }
 
-    const describePersonHeart = (self, partner, selfSpeed, topWord, realQuote, isCodeE, isCodeL, isCodeF) => {
-      const surfaceStyle = isCodeE
-        ? `먼저 말을 걸고(${self.starters}회) '${topWord}' 같은 단어를 자주 꺼내며 대화를 밝고 활기차게 리드하는 스타일 (평균 ${self.avgLen}자)`
-        : `먼저 연락하기보단 ${partner.name}님의 연락에 평균 ${selfSpeed}분 만에 성실히 반응하며 '${topWord}' 이야기를 나누는 신중한 스타일`;
+    const describePersonHeart = (self, partner, selfSpeed, topWord, realQuote, isCodeE, isCodeL, isCodeF, roleIndex = 0) => {
+      let surfaceStyle = "";
+      let innerTruth = "";
+      let secretFear = "";
+      let loveTrigger = "";
 
-      const innerTruth = isCodeL
-        ? `"평소 '${realQuote}'처럼 길고 자세하게 카톡을 보내는 건, 내 일상을 ${partner.name}님과 하나도 빠짐없이 공유하고 싶어서야. 답장이 바로 오면 혼자 핸드폰 보면서 미소 짓고 있어."`
-        : `"겉으로는 '${realQuote}'처럼 짧고 담백하게 말할 때가 있어도, 사실 ${partner.name}님 알림이 울리면 하던 일을 멈추고 평균 ${selfSpeed}분 만에 제일 먼저 확인하고 있어."`;
+      if (roleIndex === 0) {
+        surfaceStyle = isCodeE
+          ? `먼저 말을 건네며 '${topWord}' 같은 키워드로 대화의 물꼬를 유쾌하게 터주는 적극적인 분위기 메이커`
+          : `${partner.name}님의 메시지에 정성껏 응답하며 '${topWord}' 중심의 깊이 있는 대화를 이어가는 차분한 리스너 스타일`;
 
-      const secretFear = isCodeE
-        ? `내가 선톡(${self.starters}회)이나 질문(${self.questions}회)을 너무 자주 해서 ${partner.name}님이 부담을 느끼면 어쩌지 하는 은근한 걱정`
-        : `내 표현이 담백해서 ${partner.name}님이 내 호감 크기까지 작다고 오해할까 봐 신경 쓰는 마음`;
+        innerTruth = isCodeL
+          ? `"평소 '${realQuote}'처럼 길고 상세하게 톡을 남기는 건, 오늘 겪은 소소한 감정까지 ${partner.name}님과 전부 나누고 싶어서야. 카톡 알림이 뜨면 나도 모르게 입꼬리가 먼저 올라가."`
+          : `"겉으론 '${realQuote}'처럼 짧고 덤덤하게 보낼 때가 있어도, 속으로는 ${partner.name}님 연락을 온종일 기다리며 누구보다 빠르게 답장을 보내고 있어."`;
 
-      const loveTrigger = isCodeF
-        ? `${partner.name}님이 '${topWord}' 이야기를 기억해 주고 다정한 리액션과 웃음(ㅋㅋ/ㅎㅎ)으로 반겨줄 때`
-        : `막연한 인사보다 구체적인 약속 시간·장소를 콕 집어 제안해 주거나 내 일상을 세심하게 챙겨줄 때`;
+        secretFear = isCodeE
+          ? `내가 먼저 말을 걸고 질문을 쏟아내는 게 혹시 ${partner.name}님에게 부담스럽지 않을까 하는 조심스러움`
+          : `담백한 내 카톡 말투 때문에 ${partner.name}님이 '나한테 호감이 덜한가?' 오해할까 봐 마음 쓰이는 불안감`;
+
+        loveTrigger = isCodeF
+          ? `${partner.name}님이 '${topWord}' 이야기를 먼저 기억해 주며 따뜻한 맞장구와 미소(ㅋㅋ/ㅎㅎ)로 화답해 줄 때`
+          : `언제 밥 먹자는 빈말보다 구체적인 날짜나 장소를 꼭 집어 약속을 제안해 줄 때`;
+      } else {
+        surfaceStyle = isCodeE
+          ? `상대의 말에 맞장구치고 센스 있는 질문을 던지며 '${topWord}' 이야기를 끊김 없이 이어가도록 윤활유 역할을 해주는 스타일`
+          : `겉으로는 잔잔하지만 ${partner.name}님의 한마디 한마디에 집중하며 차분한 템포로 든든한 신뢰감을 주는 스타일`;
+
+        innerTruth = isCodeL
+          ? `"대화창에 '${realQuote}'처럼 다정한 말들을 꾹꾹 눌러 담기 전까지 몇 번이고 쓰고 지웠어. ${partner.name}님에게 가장 예쁜 말만 들려주고 싶거든."`
+          : `"메시지는 '${realQuote}'처럼 간결하지만, ${partner.name}님과의 대화창은 늘 상단에 고정해 두고 틈날 때마다 확인하며 답장을 이어가고 있어."`;
+
+        secretFear = isCodeE
+          ? `대화 분위기를 띄우려다 진지한 진심이나 떨리는 속마음이 자칫 가볍게 비칠까 봐 은근히 고민하는 마음`
+          : `답장을 너무 신중하게 고르느라 타이밍을 놓쳐서 ${partner.name}님을 기다리게 한 건 아닐까 하는 걱정`;
+
+        loveTrigger = isCodeF
+          ? `${partner.name}님이 하루 일과 중 문득 생각났다며 소소한 사진이나 '${topWord}' 일상을 먼저 공유해 올 때`
+          : `피곤한 하루 끝에 "오늘 고생 많았어"라며 내 컨디션과 노력을 먼저 헤아려주는 메시지를 보내줄 때`;
+      }
 
       return {
         name: self.name,
@@ -1058,8 +1081,8 @@ window.KAKAO_PARSER = {
     };
 
     const hiddenHearts = [
-      describePersonHeart(mA, mB, speedA, topWordA, quoteA, ctiA.includes("E"), ctiA.includes("L"), ctiA.includes("F")),
-      describePersonHeart(mB, mA, speedB, topWordB, quoteB, ctiB.includes("E"), ctiB.includes("L"), ctiB.includes("F"))
+      describePersonHeart(mA, mB, speedA, topWordA, quoteA, ctiA.includes("E"), ctiA.includes("L"), ctiA.includes("F"), 0),
+      describePersonHeart(mB, mA, speedB, topWordB, quoteB, ctiB.includes("E"), ctiB.includes("L"), ctiB.includes("F"), 1)
     ];
 
     const hourly = (report && report.activity && report.activity.hourly) ? report.activity.hourly : Array(24).fill(10);
@@ -1072,28 +1095,38 @@ window.KAKAO_PARSER = {
 
     const startA = Math.max(1, mA.starters || 1);
     const startB = Math.max(1, mB.starters || 1);
-    const investA = Math.min(82, Math.max(18, Math.round((startA / (startA + startB)) * 55 + ((1 / Math.max(1, speedA)) / ((1 / Math.max(1, speedA)) + (1 / Math.max(1, speedB)))) * 45)));
+    const startShareA = Math.round((startA / (startA + startB)) * 100);
+    const invSpeedA = 1 / Math.max(0.5, speedA);
+    const invSpeedB = 1 / Math.max(0.5, speedB);
+    const speedShareA = Math.round((invSpeedA / (invSpeedA + invSpeedB)) * 100);
+    const lenA = Math.max(1, mA.avgLen || 15);
+    const lenB = Math.max(1, mB.avgLen || 15);
+    const lenShareA = Math.round((lenA / (lenA + lenB)) * 100);
+    const qAffA = Math.max(1, (mA.questions || 1) + (mA.affectionHits || 0) * 2);
+    const qAffB = Math.max(1, (mB.questions || 1) + (mB.affectionHits || 0) * 2);
+    const qShareA = Math.round((qAffA / (qAffA + qAffB)) * 100);
+    const investA = Math.round(startShareA * 0.3 + speedShareA * 0.25 + lenShareA * 0.2 + qShareA * 0.25);
     const investB = 100 - investA;
     const moreInLove = investA >= investB ? mA : mB;
     const lessInLove = investA >= investB ? mB : mA;
 
     const selectiveNoteA = (mA.replySpeed && speedA < mA.replySpeed)
-      ? `${mA.name}님은 단톡방 전체 평균 답장(${mA.replySpeed}분)보다 ${mB.name}님에게 답장할 때(${speedA}분) 훨씬 빠르게 반응하는 '선택적 칼답' 시그널을 보이고 있습니다!`
-      : `두 사람의 평균 답장 속도는 ${speedA}분 vs ${speedB}분으로, 대화가 끊기지 않고 안정적인 핑퐁이 유지되고 있습니다.`;
+      ? `${mA.name}님은 단톡방 전체 평균보다 ${mB.name}님에게 답장할 때 훨씬 빠르게 반응하는 '선택적 칼답' 시그널을 보이고 있습니다!`
+      : `두 사람 사이에 대화가 끊기지 않고 안정적인 핑퐁 템포가 일정하게 유지되고 있습니다.`;
 
     const unspokenQuestions = [
       {
         icon: "fa-scale-balanced",
-        factBadge: `호감 투자 비중 ${investA}% : ${investB}%`,
+        factBadge: `호감 비중 ${investA}% : ${investB}%`,
         q: `솔직히 지금 우리 둘 중에 누가 더 신경 쓰고 좋아하는 걸까?`,
         verdict: Math.abs(investA - investB) <= 8
           ? `${mA.name}님과 ${mB.name}님의 마음 크기가 ${investA}% 대 ${investB}%로 소름 돋게 일치하는 쌍방 폴인럽 상태입니다!`
-          : `현재 '${moreInLove.name}'님이 먼저 다가가는 에너지가 조금 더 크지만, '${lessInLove.name}'님도 평균 ${lessInLove.name === mA.name ? speedA : speedB}분 내외의 답장으로 화답하는 쌍방 호감입니다!`,
-        detail: `선톡 개시(${mA.name} ${mA.starters}회 vs ${mB.name} ${mB.starters}회)와 질문 세례(${mA.questions}회 vs ${mB.questions}회), 평균 글자 수(${mA.avgLen}자 vs ${mB.avgLen}자)를 종합한 실제 행동 데이터 판독 결과입니다.`
+          : `현재 '${moreInLove.name}'님이 먼저 다가가는 에너지가 조금 더 크지만, '${lessInLove.name}'님도 안정적인 답장으로 화답하는 쌍방 호감입니다!`,
+        detail: `선톡 개시 빈도, 질문 적극성, 메시지 정성도를 종합하여 분석한 실제 대화 행동 데이터 판독 결과입니다.`
       },
       {
         icon: "fa-bolt",
-        factBadge: `1:1 답장 ${speedA}분 vs ${speedB}분`,
+        factBadge: `1:1 반응 속도 시그널`,
         q: `상대방이 나한테만 특별히 더 빨리 답장하는 걸까, 아니면 원래 카톡을 빨리 보는 걸까?`,
         verdict: (speedA <= 5 || speedB <= 5)
           ? `알림이 울리면 바로 확인하는 확실한 '관심권 칼답' 패턴입니다!`
@@ -1105,21 +1138,21 @@ window.KAKAO_PARSER = {
         factBadge: `심야 대화 비중 ${lateNightPct}%`,
         q: `밤늦게 카톡할 때 상대방도 내 생각하면서 설레고 있을까?`,
         verdict: `밤 10시 - 새벽 2시 감성 시간대 대화 비중이 ${lateNightPct}%에 달합니다. 잠들기 전 가장 생각나는 사람이 서로라는 뜻입니다!`,
-        detail: `피곤한 심야 시간에도 단답으로 끊지 않고 '${topWordA}', '${topWordB}' 같은 일상 이야기를 나누며 웃음(${mA.laughs + mB.laughs}회)이 오가고 있습니다.`
+        detail: `피곤한 심야 시간에도 단답으로 끊지 않고 '${topWordA}', '${topWordB}' 같은 일상 이야기를 나누며 다정한 웃음이 오가고 있습니다.`
       },
       {
         icon: "fa-comments",
         factBadge: `말투 동조율 ${dyadicLsm}%`,
         q: `우리가 연인이 되면 대화 코드가 잘 맞고 오래 만날 수 있을까?`,
         verdict: `무의식적인 말투와 리액션 호흡(언어적 스타일 매칭)이 ${dyadicLsm}% 일치하여 대화 피로도가 극히 낮은 천생연분 조합입니다.`,
-        detail: `${mA.name}님의 성향(${ctiA})과 ${mB.name}님의 성향(${ctiB})이 맞물려, 억지로 텐션을 짜내지 않아도 자연스러운 티키타카가 이어집니다.`
+        detail: `${mA.name}님과 ${mB.name}님의 대화 성향이 편안하게 맞물려, 억지로 텐션을 올리지 않아도 자연스러운 티키타카가 이어집니다.`
       },
       {
         icon: "fa-paper-plane",
-        factBadge: `선톡 ${mA.starters}회 : ${mB.starters}회`,
+        factBadge: `선톡 반응 시그널`,
         q: `내가 먼저 연락하면 귀찮아하거나 부담스러워하진 않을까?`,
         verdict: `전혀 부담스러워하지 않습니다! 먼저 연락이 오면 기다렸다는 듯 대화를 길게 이어가고 있습니다.`,
-        detail: `선톡 직후 오가는 질문(${mA.questions + mB.questions}회)과 애정·공감 표현 빈도를 보면, 오히려 먼저 연락해 주기를 내심 기다리는 패턴입니다.`
+        detail: `선톡 직후 오가는 질문과 다정한 공감 표현 빈도를 보면, 오히려 먼저 연락해 주기를 내심 기다리는 패턴입니다.`
       },
       {
         icon: "fa-heart",

@@ -61,17 +61,22 @@
     .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #2d3140; }
 
     /* 포토카드 html2canvas 캡처 시 폰트 및 위치 어긋남 방지 전용 CSS */
+    img[width="1"][height="1"],
+    body > div[style*="visibility: hidden"] > img {
+      display: inline !important;
+    }
     #shareCardCanvas {
-      font-family: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
-      text-rendering: optimizeLegibility;
+      text-rendering: auto !important;
       box-sizing: border-box;
-      letter-spacing: -0.015em;
+      letter-spacing: 0 !important;
     }
     #shareCardCanvas * {
       box-sizing: border-box;
-      text-rendering: optimizeLegibility;
+      text-rendering: auto !important;
+      letter-spacing: 0 !important;
     }
 
     /* 마이크로 필름 그레인 오버레이 (디지털 단색/그라데이션의 인위적인 느낌 제거) */
@@ -308,8 +313,33 @@
     body.light-mode .text-pink-200\/80 {
       color: var(--text-muted) !important;
     }
+    body.light-mode .text-gray-300 { color: #1e293b !important; }
+    body.light-mode .text-gray-400 { color: #334155 !important; }
+    body.light-mode .text-gray-500 { color: #475569 !important; }
+    body.light-mode .text-gray-600 { color: #475569 !important; }
+    body.light-mode #selectedModeAcademicCite { color: #0f172a !important; font-weight: 700 !important; }
+
+    /* 라이트 모드 시맨틱 포인트 컬러 고대비 보정 */
     body.light-mode [class*="text-[#f5b73d]"] {
       color: #b45309 !important;
+    }
+    body.light-mode #dropZoneIconBox.mode-romance {
+      background: linear-gradient(135deg, #fdf2f8 0%, #fce7f3 100%) !important;
+      border-color: rgba(236, 72, 153, 0.45) !important;
+      color: #db2777 !important;
+      box-shadow: 0 10px 25px rgba(236, 72, 153, 0.18) !important;
+    }
+    body.light-mode #dropZoneIconBox.mode-villain {
+      background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%) !important;
+      border-color: rgba(16, 185, 129, 0.45) !important;
+      color: #059669 !important;
+      box-shadow: 0 10px 25px rgba(16, 185, 129, 0.18) !important;
+    }
+    body.light-mode #dropZoneIconBox.mode-chemistry {
+      background: linear-gradient(135deg, #fefce8 0%, #fef08a 100%) !important;
+      border-color: rgba(245, 183, 61, 0.55) !important;
+      color: #b45309 !important;
+      box-shadow: 0 10px 25px rgba(245, 183, 61, 0.18) !important;
     }
     body.light-mode .text-pink-200,
     body.light-mode .text-pink-300,
@@ -515,17 +545,17 @@
           <h3 id="dropZoneHeadline" class="text-lg sm:text-xl font-bold text-[#f4f4f6] tracking-tight pt-1">
             여기에 단톡방 대화 파일(.txt)을 끌어다 놓거나 버튼을 눌러 열기
           </h3>
-          <p id="dropZoneSubline" class="text-xs sm:text-sm text-[#8e929f]">
+          <p id="dropZoneSubline" class="text-xs sm:text-sm text-[#8e929f] break-keep leading-relaxed max-w-lg mx-auto">
             대화 파일을 올리면 누가 가장 잘 통하는지 한눈에 보기 쉽게 정리해 드립니다
           </p>
         </div>
 
-        <div class="relative z-10 pt-2 flex flex-col items-center justify-center gap-2.5 w-full max-w-xs mx-auto">
+        <div class="relative z-10 pt-2 flex flex-col items-center justify-center gap-3 w-full max-w-xs mx-auto">
           <button type="button" id="dropZonePrimaryBtn" onclick="document.getElementById('mainFileInput').click()" class="w-full py-4 sm:py-4.5 px-8 bg-gradient-to-b from-[#f7c14d] to-[#eaa829] hover:from-[#f9ca63] hover:to-[#f5b73d] text-[#060608] font-black text-base sm:text-lg rounded-2xl transition-all duration-200 shadow-[0_10px_30px_rgba(245,183,61,0.32),inset_0_1px_0_0_rgba(255,255,255,0.45)] flex items-center justify-center gap-2.5 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer">
             <i class="fa-solid fa-folder-open text-lg"></i> <span id="dropZoneBtnText">내 카톡 파일 열기</span>
           </button>
-          <button type="button" onclick="loadSampleDemo(event)" class="px-4 py-2 bg-[#141720]/80 hover:bg-[#1c202c] text-[#8e929f] hover:text-[#f4f4f6] font-bold text-xs rounded-xl transition-all duration-200 border border-white/[0.08] hover:border-white/[0.2] flex items-center justify-center gap-1.5 cursor-pointer">
-            <i class="fa-solid fa-wand-magic-sparkles text-[#f5b73d] text-[11px]"></i> <span id="sampleDemoBtnText">선택한 모드로 샘플 체험</span>
+          <button type="button" onclick="loadSampleDemo(event)" class="w-full px-5 py-3 rounded-xl bg-white/[0.08] hover:bg-white/[0.14] text-white font-bold text-xs sm:text-sm transition-all duration-200 border border-white/20 hover:border-[#f5b73d]/50 shadow-sm hover:shadow-[0_4px_16px_rgba(245,183,61,0.15)] flex items-center justify-center gap-2 cursor-pointer">
+            <i class="fa-solid fa-wand-magic-sparkles text-[#f5b73d] text-xs"></i> <span id="sampleDemoBtnText">선택한 모드로 샘플 체험</span>
           </button>
         </div>
 
@@ -1216,8 +1246,8 @@
   </div>
 
   <!-- 인스타 / 카톡 공유용 포토카드 모달 -->
-  <div id="shareCardModal" class="fixed inset-0 bg-[#060608]/85 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
-    <div class="bg-[#0c0d11] border border-white/[0.1] rounded-[36px] max-w-xl w-full p-5 md:p-6 space-y-5 relative max-h-[95vh] overflow-y-auto custom-scrollbar shadow-[0_28px_64px_rgba(0,0,0,0.75),inset_0_1px_0_0_rgba(255,255,255,0.12)]">
+  <div id="shareCardModal" class="fixed inset-0 bg-[#060608]/85 backdrop-blur-md z-50 flex items-center justify-center p-4 overflow-y-auto overflow-x-hidden hidden">
+    <div class="bg-[#0c0d11] border border-white/[0.1] rounded-[36px] max-w-xl w-full p-5 md:p-6 space-y-5 relative max-h-[95vh] overflow-y-auto overflow-x-hidden custom-scrollbar shadow-[0_28px_64px_rgba(0,0,0,0.75),inset_0_1px_0_0_rgba(255,255,255,0.12)]">
       <!-- 닫기 버튼 -->
       <button onclick="closeShareModal()" class="absolute top-5 right-5 text-[#8e929f] hover:text-[#f4f4f6] transition w-8 h-8 rounded-full bg-[#12141a] hover:bg-[#191c24] flex items-center justify-center border border-white/[0.08]">
         <i class="fa-solid fa-xmark text-base"></i>
@@ -1278,12 +1308,12 @@
             <!-- [1] 헤더 (카테고리 + 날짜) -->
             <div class="relative z-10 border-b border-white/[0.08] pb-3 flex items-center justify-between">
               <div>
-                <span id="cardCategoryTag" class="text-[9px] font-extrabold tracking-wider text-[#f5b73d] uppercase bg-[#f5b73d]/10 px-2 py-0.5 rounded-md border border-[#f5b73d]/20 inline-flex items-center justify-center leading-normal">
+                <span id="cardCategoryTag" class="text-[10px] font-extrabold tracking-wider text-[#f5b73d] uppercase bg-[#f5b73d]/10 px-2.5 py-1 rounded-md border border-[#f5b73d]/20 inline-flex items-center justify-center leading-normal">
                   CTI IDENTITY CARD
                 </span>
                 <p id="cardSubHeader" class="text-[10px] text-[#8e929f] mt-0.5 font-medium leading-normal">카카오톡 성향 프로필</p>
               </div>
-              <span id="cardBadgeRight" class="text-xs font-black px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 inline-flex items-center justify-center leading-normal">
+              <span id="cardBadgeRight" class="text-xs font-black px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 inline-flex items-center justify-center leading-normal">
                 우정 S+
               </span>
             </div>
@@ -1300,13 +1330,13 @@
               <!-- 이름 및 CTI 코드 (줄바꿈 원천 차단 및 받침 잘림 방지) -->
               <div class="mt-1 space-y-0.5 w-full px-2">
                 <div class="flex items-center justify-center gap-2 whitespace-nowrap">
-                  <h3 id="cardHeroName" class="text-lg font-black text-[#f4f4f6] leading-normal pb-0.5">민우</h3>
-                  <span id="cardHeroCti" class="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-[#f5b73d] text-[#060608] shadow-sm inline-flex items-center justify-center leading-normal">
+                  <h3 id="cardHeroName" class="text-lg font-black text-[#f4f4f6] leading-normal">민우</h3>
+                  <span id="cardHeroCti" class="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-[#f5b73d] text-[#060608] shadow-sm inline-flex items-center justify-center leading-normal">
                     ELFA
                   </span>
                 </div>
-                <p id="cardHeroTitle" class="text-xs font-extrabold text-[#f5b73d] whitespace-nowrap break-keep leading-normal pb-0.5">토크 폭주기관차</p>
-                <p id="cardHeroSub" class="text-[11px] text-[#8e929f] font-medium whitespace-nowrap break-keep leading-normal pb-0.5">"감정 과잉의 썰 보따리 & 질문 요정"</p>
+                <p id="cardHeroTitle" class="text-xs font-extrabold text-[#f5b73d] whitespace-nowrap break-keep leading-normal">토크 폭주기관차</p>
+                <p id="cardHeroSub" class="text-[11px] text-[#8e929f] font-medium whitespace-nowrap break-keep leading-normal">"감정 과잉의 썰 보따리 & 질문 요정"</p>
               </div>
             </div>
 
@@ -1416,7 +1446,7 @@
     <div class="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
       <div class="flex items-center gap-2">
         <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-        <p class="text-[#f4f4f6] font-semibold">단톡방 케미 &amp; 성향 분석 리포트</p>
+        <p id="reportFooterTitleText" class="text-[#f4f4f6] font-semibold">단톡방 케미 &amp; 성향 분석 리포트</p>
         <span class="text-[11px] text-[#8e929f] px-2 py-0.5 rounded bg-white/[0.04] border border-white/[0.06]">100% 기기 내부 분석</span>
       </div>
       <p class="text-[#8e929f]">재미와 유대감을 위한 엔터테인먼트 도구입니다.</p>
